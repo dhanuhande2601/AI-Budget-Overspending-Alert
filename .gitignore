@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.pyc
+
+# Virtual Environment
+venv/
+env/
+backend/Lib/
+backend/Scripts/
+backend/Include/
+backend/pyvenv.cfg
+
+# Logs
+*.log
+
+# Environment variables
+.env
+
+# Backups
+backups/
+backend/backups/
+
+# Node
+node_modules/
+
+# Build
+dist/
+build/
