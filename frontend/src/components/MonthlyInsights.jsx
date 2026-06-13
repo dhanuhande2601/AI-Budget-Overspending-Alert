@@ -1,63 +1,63 @@
-function MonthlyInsights({
-
-  data
-
-}) {
-
-  if (!data)
-    return null
+function MonthlyInsights({ data }) {
+  if (!data) return null
 
   return (
-
     <div className="card">
-
-      <h2>
-        Monthly Insights
-      </h2>
+      <h2>📊 Monthly Insights</h2>
 
       <p>
-
-        Highest Category:
+        <strong>Highest Category:</strong>
         {data.highest_category}
-
-        (₹{data.highest_amount})
-
+        (₹{Number(data.highest_amount || 0).toFixed(2)})
       </p>
 
       <p>
-
-        Lowest Category:
+        <strong>Lowest Category:</strong>
         {data.lowest_category}
-
-        (₹{data.lowest_amount})
-
+        (₹{Number(data.lowest_amount || 0).toFixed(2)})
       </p>
 
       <p>
-
-        Transactions:
-        {data.total_transactions}
-
+        <strong>Transactions:</strong>
+        {data.total_transactions || 0}
       </p>
 
       <p>
-
-        Average Expense:
-        ₹{data.average_expense}
-
+        <strong>Average Expense:</strong>
+        ₹{Number(data.average_expense || 0).toFixed(2)}
       </p>
 
       <p>
-
-        Total Spending:
-        ₹{data.total_spending}
-
+        <strong>Total Spending:</strong>
+        ₹{Number(data.total_spending || 0).toFixed(2)}
       </p>
 
+      <hr />
+
+      <div
+        style={{
+          background: "#eef6ff",
+          padding: "12px",
+          borderRadius: "8px",
+          marginTop: "10px",
+        }}
+      >
+        <h3>🤖 AI Recommendation</h3>
+
+        <p
+          style={{
+            whiteSpace: "normal",
+            wordBreak: "break-word",
+            overflowWrap: "break-word",
+            lineHeight: "1.8",
+            width: "100%",
+          }}
+        >
+          {data.ai_recommendation || "No recommendation available"}
+        </p>
+      </div>
     </div>
-
   )
-
 }
 
 export default MonthlyInsights

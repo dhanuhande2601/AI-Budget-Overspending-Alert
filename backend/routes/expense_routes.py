@@ -1,47 +1,31 @@
 from flask import Blueprint, request, jsonify
-
-from flask_jwt_extended import (
-    jwt_required,
-    get_jwt_identity
-)
-
+from flask_jwt_extended import (jwt_required,get_jwt_identity)
 from database.db import db
-from services.category_alert_service import (
-    check_category_alerts
-)
-
-from services.email_service import (
-    send_category_alert
-)
-
+from services.category_alert_service import (check_category_alerts)
+from services.email_service import (send_category_alert)
+from models.budget_notification_model import BudgetNotification
 from models.expense_model import Expense
 from models.user_model import User
-
 from services.backup_service import backup_expenses
 from services.sms_parser import parse_expense_sms
 from services.email_service import send_budget_alert
 from flask import request
 from models.category_budget_model import CategoryBudget
+from services.ai_budget_engine import detect_overspending
 expense = Blueprint(
     'expense',
     __name__
 )
-
 def get_total_spending(user_id):
-
     expenses = Expense.query.filter_by(
         user_id=user_id
     ).all()
-
     total = 0
-
     for expense in expenses:
         total += expense.amount
-
     return total
 
 def create_expense(user_id, title, amount, category, payment_method):
-
     new_expense = Expense(
         user_id=user_id,
         title=title,
@@ -49,15 +33,12 @@ def create_expense(user_id, title, amount, category, payment_method):
         category=category,
         payment_method=payment_method
     )
-
     db.session.add(new_expense)
     db.session.commit()
 
     backup_expenses()
 
     return new_expense
-
-
 
 # =========================================
 # ADD EXPENSE
@@ -72,12 +53,38 @@ def add_expense():
 
     title = (data.get('title') or '').strip()
 
-    category = (data.get('category') or '').strip()
+    category = (data.get('category') or '').strip().title()
     user = User.query.get(current_user_id)
 
     payment_method = (
-        data.get('payment_method') or ''
-    ).strip()
+        (data.get('payment_method') or '')
+        .strip()
+        .lower()
+    )
+
+    if payment_method in [
+        "gpay",
+        "google pay",
+        "phonepe",
+        "paytm",
+        "upi"
+    ]:
+        payment_method = "UPI"
+
+    elif payment_method in [
+        "credit card",
+        "debit card",
+        "card"
+    ]:
+        payment_method = "Card"
+
+    elif payment_method in [
+        "net banking",
+        "netbanking",
+        "neft",
+        "imps"
+    ]:
+        payment_method = "Net Banking"
 
     # Validate amount
     try:
@@ -116,11 +123,14 @@ def add_expense():
     total_spending = get_total_spending(
         current_user_id
     )
+    overspending_alerts = detect_overspending(
+        current_user_id
+    )
 
+    print("OVERSPENDING ALERTS =", overspending_alerts)
     # =========================================
     # EMAIL ALERTS
     # =========================================
-
     current_user = User.query.get(
         current_user_id
     )
@@ -128,9 +138,12 @@ def add_expense():
     if current_user:
 
         # Category alerts should include the new expense
+        print("CHECK_CATEGORY_ALERTS CALLED")
+        
         alerts = check_category_alerts(
             current_user_id
         )
+        print("CATEGORY ALERT RESULT =", alerts)
 
         for alert in alerts:
             try:
@@ -209,11 +222,9 @@ def add_expense():
                 )
 
     return jsonify({
-
         "message": "Expense added successfully",
-
-        "total_spending": total_spending
-
+        "total_spending": total_spending,
+        "overspending_alerts": overspending_alerts
     }), 201
 # =========================================
 # GET ALL EXPENSES
@@ -259,8 +270,6 @@ def get_expenses():
     return jsonify({
         "expenses": expense_list
     }), 200
-
-
 # =========================================
 # DELETE EXPENSE
 # =========================================
@@ -300,8 +309,6 @@ def delete_expense(expense_id):
         "Expense deleted successfully"
 
     }), 200
-
-
 # =========================================
 # SMS PREVIEW
 # =========================================
@@ -394,26 +401,43 @@ def add_sms_expense():
             "Could not parse SMS"
         }), 400
 
-    title = (
-        data.get('title')
-        or
-        parsed.get('title')
-        or ''
-    ).strip()
+    title = (data.get('title') or '').strip()
 
     category = (
-        data.get('category')
-        or
-        parsed.get('category')
-        or ''
-    ).strip()
+        (data.get('category') or '')
+        .strip()
+        .title()
+    )
 
     payment_method = (
-        data.get('payment_method')
-        or
-        parsed.get('payment_method')
-        or ''
-    ).strip()
+        (data.get('payment_method') or '')
+        .strip()
+        .lower()
+    )
+
+    if payment_method in [
+        "gpay",
+        "google pay",
+        "phonepe",
+        "paytm",
+        "upi"
+    ]:
+        payment_method = "UPI"
+
+    elif payment_method in [
+        "credit card",
+        "debit card",
+        "card"
+    ]:
+        payment_method = "Card"
+
+    elif payment_method in [
+        "net banking",
+        "netbanking",
+        "neft",
+        "imps"
+    ]:
+        payment_method = "Net Banking"
 
     try:
 
@@ -532,7 +556,7 @@ def update_expense(expense_id):
 
     category = (
         data.get('category') or ''
-    ).strip()
+    ).strip().lower()
 
     payment_method = (
         data.get('payment_method') or ''
@@ -605,22 +629,13 @@ def latest_expenses():
     for item in expenses:
 
         result.append({
-
-            "id":
-                item.id,
-
-            "title":
-                item.title,
-
-            "amount":
-                item.amount,
-
-            "category":
-                item.category,
-
-            "payment_method":
-                item.payment_method
-
+            "id": item.id,
+            "title": item.title,
+            "amount": item.amount,
+            "category": item.category,
+            "payment_method": item.payment_method,
+            "created_at": str(item.created_at)
+            if item.created_at else None
         })
 
     return jsonify(result)

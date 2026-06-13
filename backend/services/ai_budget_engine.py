@@ -1,104 +1,95 @@
 from datetime import datetime, timedelta
-
+import calendar
 from sqlalchemy import func
 
 from models.expense_model import Expense
 from models.user_model import User
 
 
+from models.category_budget_model import CategoryBudget
+
 def detect_overspending(user_id):
-    today = datetime.utcnow()
-    current_week = today - timedelta(days=7)
-    previous_week = today - timedelta(days=14)
 
-    current_week_expenses = (
-        Expense.query
-        .with_entities(
-            Expense.category,
-            func.sum(Expense.amount)
-        )
-        .filter(
-            Expense.user_id == user_id,
-            Expense.created_at >= current_week
-        )
-        .group_by(Expense.category)
-        .all()
-    )
-
-    previous_week_expenses = (
-        Expense.query
-        .with_entities(
-            Expense.category,
-            func.sum(Expense.amount)
-        )
-        .filter(
-            Expense.user_id == user_id,
-            Expense.created_at >= previous_week,
-            Expense.created_at < current_week
-        )
-        .group_by(Expense.category)
-        .all()
-    )
-
-    previous_dict = {
-        category: amount
-        for category, amount in previous_week_expenses
-    }
+    budgets = CategoryBudget.query.filter_by(
+        user_id=user_id
+    ).all()
 
     alerts = []
 
-    for category, current_amount in current_week_expenses:
-        previous_amount = previous_dict.get(category, 0)
+    for budget in budgets:
 
-        if previous_amount > 0:
-            increase_percentage = (
-                (current_amount - previous_amount) / previous_amount
-            ) * 100
+        expenses = Expense.query.filter_by(
+            user_id=user_id,
+            category=budget.category
+        ).all()
 
-            if increase_percentage >= 40:
-                alerts.append({
-                    'category': category,
-                    'previous_week': round(previous_amount, 2),
-                    'current_week': round(current_amount, 2),
-                    'increase_percentage': round(increase_percentage, 2),
-                    'alert': f'{category} spending increased {round(increase_percentage, 2)}% this week'
-                })
+        spent = sum(
+            float(exp.amount)
+            for exp in expenses
+        )
+
+        percentage = (
+            spent / budget.monthly_limit * 100
+            if budget.monthly_limit > 0
+            else 0
+        )
+
+        if percentage >= 100:
+
+            alerts.append({
+                "category": budget.category,
+                "message": f"{budget.category} budget exceeded",
+                "spent": spent,
+                "limit": budget.monthly_limit,
+                "percentage": round(percentage, 2)
+            })
+
+        elif percentage >= 80:
+
+            alerts.append({
+                "category": budget.category,
+                "message": f"{budget.category} budget is {round(percentage,2)}% used",
+                "spent": spent,
+                "limit": budget.monthly_limit,
+                "percentage": round(percentage, 2)
+            })
 
     return alerts
-
-
-from datetime import datetime
-
 def predict_month_end_spending(expenses):
 
     if not expenses:
         return 0
 
     total_spending = sum(
-        expense.amount
-        for expense in expenses
+        float(e.amount)
+        for e in expenses
     )
 
     today = datetime.now().day
 
-    # First 3 days of month → prediction unstable
-    if today <= 3:
-        return total_spending
+    current_month_days = calendar.monthrange(
+        datetime.now().year,
+        datetime.now().month
+    )[1]
 
-    average_daily_spending = (
-        total_spending / today
-    )
+    progress_percent = (
+        today / current_month_days
+    ) * 100
 
-    predicted_total = (
-        average_daily_spending * 30
-    )
+    # Month already half gone
+    if progress_percent >= 50:
+        prediction = (
+            total_spending * 1.15
+        )
 
-    return round(
-        predicted_total,
-        2
-    )
+    # Month less than half
+    else:
+        prediction = (
+            total_spending *
+            (100 / progress_percent)
+        )
 
-
+    return round(prediction, 2)
 def generate_smart_advice(category_summary):
     advice = []
 
@@ -170,32 +161,34 @@ def calculate_risk_score(
     if monthly_budget <= 0:
         return {
             "score": 0,
-            "level": "UNKNOWN"
+            "level": "LOW"
         }
 
-    usage = (
+    current_usage = (
         total_spending /
         monthly_budget
     ) * 100
 
-    score = 0
+    predicted_usage = (
+        predicted_spending /
+        monthly_budget
+    ) * 100
 
-    if usage >= 50:
-        score += 30
+    score = (
+        current_usage * 0.8
+        +
+        predicted_usage * 0.2
+    )
 
-    if usage >= 75:
-        score += 30
-
-    if usage >= 90:
-        score += 20
-
-    if predicted_spending > monthly_budget:
-        score += 20
+    score = min(
+        round(score),
+        100
+    )
 
     if score >= 80:
         level = "HIGH"
 
-    elif score >= 50:
+    elif score >= 60:
         level = "MEDIUM"
 
     else:

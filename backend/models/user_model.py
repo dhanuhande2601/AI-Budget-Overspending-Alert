@@ -47,3 +47,17 @@ class User(db.Model):
         db.Boolean,
         default=False
     )
+    sms_alert_enabled = db.Column(
+        db.Boolean,
+        default=False
+    )
+
+    email_alert_enabled = db.Column(
+        db.Boolean,
+        default=True
+    )
+
+    whatsapp_alert_enabled = db.Column(
+        db.Boolean,
+        default=False
+    )

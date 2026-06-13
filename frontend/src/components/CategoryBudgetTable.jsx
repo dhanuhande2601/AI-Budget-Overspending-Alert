@@ -1,5 +1,4 @@
 function CategoryBudgetTable({ budgets = [] }) {
-
   if (!budgets.length) {
     return (
       <div className="panel">
@@ -11,13 +10,10 @@ function CategoryBudgetTable({ budgets = [] }) {
 
   return (
     <div className="panel">
-
       <h2>Category Budget Status</h2>
 
       <div className="table-wrapper">
-
         <table className="budget-table">
-
           <thead>
             <tr>
               <th>Category</th>
@@ -30,17 +26,27 @@ function CategoryBudgetTable({ budgets = [] }) {
           </thead>
 
           <tbody>
-
             {budgets.map((item) => {
+              const budget = Number(
+                item.budget ||
+                item.monthly_limit ||
+                0
+              )
 
-              const budget = Number(item.budget || item.monthly_limit || 0)
-              const spent = Number(item.spent || 0)
+              const spent = Number(
+                item.spent || 0
+              )
 
-              const remaining = budget - spent
+              const remaining = Math.max(
+                budget - spent,
+                0
+              )
 
               const percent =
                 budget > 0
-                  ? Math.round((spent / budget) * 100)
+                  ? Math.round(
+                      (spent / budget) * 100
+                    )
                   : 0
 
               let status = 'Safe'
@@ -58,62 +64,55 @@ function CategoryBudgetTable({ budgets = [] }) {
 
               return (
                 <tr key={item.category}>
-
                   <td>
-                    {item.category}
+                    <strong>
+                      {item.category}
+                    </strong>
                   </td>
 
                   <td>
-                    ₹{budget}
+                    ₹{budget.toFixed(2)}
                   </td>
 
                   <td>
-                    ₹{spent}
+                    ₹{spent.toFixed(2)}
                   </td>
 
                   <td>
-                    ₹{remaining}
+                    ₹{remaining.toFixed(2)}
                   </td>
 
                   <td>
-
                     <div className="progress-container">
-
                       <div
                         className={`progress-bar ${statusClass}`}
                         style={{
-                          width: `${Math.min(percent, 100)}%`
+                          width: `${Math.min(
+                            percent,
+                            100
+                          )}%`,
                         }}
                       />
-
                     </div>
 
                     <small>
                       {percent}%
                     </small>
-
                   </td>
 
                   <td>
-
                     <span
                       className={`status-badge ${statusClass}`}
                     >
                       {status}
                     </span>
-
                   </td>
-
                 </tr>
               )
             })}
-
           </tbody>
-
         </table>
-
       </div>
-
     </div>
   )
 }

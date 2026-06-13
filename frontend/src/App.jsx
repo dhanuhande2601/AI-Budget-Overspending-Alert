@@ -25,7 +25,7 @@ import CategoryBudgetSetup from './components/CategoryBudgetSetup'
 import LatestExpensesByCategory from './components/LatestExpensesByCategory'
 import MonthlyInsights from './components/MonthlyInsights'
 import ProfileModal from './components/ProfileModal'
-
+import AIRecommendations from './components/AIRecommendations'
 import './App.css'
 const emptyAuth = {
   name: '',
@@ -48,7 +48,6 @@ const emptyAnalytics = {
   category_summary: [],
   predicted_spending: 0,
 }
-
 
 function App() {
   const [token, setToken] = useState(
@@ -74,7 +73,7 @@ function App() {
 
   const [showCategoryBudget, setShowCategoryBudget] = useState(false)
   const [showProfile, setShowProfile] = useState(false)
-
+  const [showExpenses, setShowExpenses] = useState(false)
   const [newBudget, setNewBudget] = useState('')
   const [newIncome, setNewIncome] = useState('')
   const [newSavings, setNewSavings] = useState('')
@@ -92,7 +91,10 @@ function App() {
   const [categoryAlerts, setCategoryAlerts] = useState([])
 
   const [latestExpenses, setLatestExpenses] = useState([])
-
+  console.log("CATEGORY ALERT STATE =", categoryAlerts)
+  console.log("LATEST EXPENSE STATE =", latestExpenses)
+  console.log("alerts =", alerts)
+  console.log("categoryAlerts =", categoryAlerts)
   const [monthlyInsights, setMonthlyInsights] = useState(null)
   const filteredExpenses = useMemo(
     () =>
@@ -104,31 +106,49 @@ function App() {
         const matchesCategory =
           !categoryFilter ||
           expense.category === categoryFilter
-
+        const allAlerts = [
+          ...(alerts || []),
+          ...(categoryAlerts?.alerts || [])
+        ]
         return matchesSearch && matchesCategory
       }),
     [expenses, searchTerm, categoryFilter]
   )
-  const trendData = useMemo(
-    () =>
-      filteredExpenses.map((expense, index) => ({
-        day: `Expense ${index + 1}`,
-        amount: Number(expense.amount || 0),
-      })),
-    [filteredExpenses]
-  )
+  const trendData = useMemo(() => {
+  const monthlyData = {}
+
+    expenses.forEach((expense) => {
+      const month = new Date(
+        expense.created_at
+      ).toLocaleString('default', {
+        month: 'short',
+      })
+
+      monthlyData[month] =
+        (monthlyData[month] || 0) +
+        Number(expense.amount || 0)
+    })
+
+    return Object.keys(monthlyData).map(
+      (month) => ({
+        month,
+        amount: monthlyData[month],
+      })
+    )
+  }, [expenses])
   const authHeaders = useMemo(
     () => getAuthHeaders(token),
     [token]
 )
   const totalSpending = Number(analytics?.total_spending || 0)
-
+  
   const monthlyBudget = Number(
     user?.available_budget ||
     user?.monthly_budget ||
     0
   )
-
+  const pieData = analytics?.category_summary || []
+  
   const hasBudget = monthlyBudget > 0
 
   const isBudgetExceeded =
@@ -141,9 +161,8 @@ function App() {
     totalSpending >= monthlyBudget * 0.8
 
   const alertCount =
-    isBudgetExceeded || isBudgetWarning
-      ? 1
-      : alerts.length
+    alerts.length +
+    categoryAlerts.length
 
   const updateDashboard = useCallback((dashboardData) => {
     setUser(dashboardData.user || null)
@@ -161,8 +180,14 @@ function App() {
       setCategoryAlerts(alertsData || [])
 
       const latest = await getLatestExpenses(token)
-      setLatestExpenses(latest || [])
 
+      console.log("LATEST =", latest)
+
+      setLatestExpenses(
+        Array.isArray(latest)
+          ? latest
+          : latest?.expenses || []
+      )
       const insights = await getMonthlyInsights(token)
       setMonthlyInsights(insights)
 
@@ -296,7 +321,15 @@ function App() {
   const loadCategoryAlerts = useCallback(async () => {
     try {
       const data = await getCategoryAlerts(token)
-      setCategoryAlerts(data)
+
+      console.log("CATEGORY ALERTS =", data)
+
+      setCategoryAlerts(
+        Array.isArray(data)
+          ? data
+          : data?.alerts || []
+      )
+
     } catch (error) {
       console.log(error)
     }
@@ -328,13 +361,14 @@ function App() {
     try {
       const response = await apiRequest('/auth/update-budget', {
         method: 'PUT',
+        headers: authHeaders,
         body: JSON.stringify({
           monthly_savings: Number(amount),
         }),
       })
 
       if (response?.success) {
-        await loadDashboard()
+        await refreshDashboard()
       }
     } catch (error) {
       console.error('Savings update failed:', error)
@@ -343,7 +377,18 @@ function App() {
   const loadLatestExpenses = useCallback(async () => {
     try {
       const data = await getLatestExpenses(token)
-      setLatestExpenses(data || [])
+
+      console.log(
+        "LATEST EXPENSE API =",
+        data
+      )
+
+      setLatestExpenses(
+        Array.isArray(data)
+          ? data
+          : data?.expenses || []
+      )
+
     } catch (error) {
       console.log(error)
     }
@@ -602,65 +647,9 @@ function App() {
         onProfileClick={handleLoadProfile}
         user={user}
       />
-      <div className="card budget-update-card">
-        <div className="budget-update-row">
-          <div>
-            <h3>Update Monthly Budget</h3>
-            <p className="panel-subtitle">Set the amount you want to spend this month.</p>
-          </div>
-          <div className="budget-value">
-            <span>Available budget</span>
-            <strong>₹{monthlyBudget.toLocaleString()}</strong>
-          </div>
-        </div>
-
-        <div className="budget-action-grid">
-          <div className="budget-action-block">
-            <label>Budget</label>
-            <input
-              type="number"
-              placeholder="Enter new budget"
-              value={newBudget}
-              onChange={(e) => setNewBudget(e.target.value)}
-            />
-            <button onClick={handleBudgetUpdate}>
-              Update Budget
-            </button>
-          </div>
-
-          <div className="budget-action-block">
-            <label>Monthly Income</label>
-            <input
-              type="number"
-              placeholder="Enter monthly income"
-              value={newIncome}
-              onChange={(e) => setNewIncome(e.target.value)}
-            />
-            <button onClick={handleUpdateIncome}>
-              Save Income
-            </button>
-          </div>
-
-          <div className="budget-action-block">
-            <label>Monthly Savings</label>
-            <input
-              type="number"
-              placeholder="Enter monthly savings"
-              value={newSavings}
-              onChange={(e) => setNewSavings(e.target.value)}
-            />
-            <button onClick={handleUpdateSavings}>
-              Save Savings
-            </button>
-          </div>
-        </div>
-      </div>
-      <button
-        onClick={() => setShowCategoryBudget(true)}
-      >
-        Set Category Budgets
-      </button>
-
+      
+      
+      
       <Metrics
         alertCount={alertCount}
         analytics={analytics}
@@ -691,13 +680,19 @@ function App() {
         <MonthlyInsights
           data={monthlyInsights}
         />
+
         <LatestExpensesByCategory
           data={latestExpenses}
           alerts={categoryAlerts}
         />
 
         <AlertsTrendSection
-          alerts={alerts}
+          alerts={[
+            ...(alerts || []),
+            ...(Array.isArray(categoryAlerts)
+              ? categoryAlerts
+              : categoryAlerts?.alerts || [])
+          ]}
           analytics={analytics}
           isBudgetExceeded={isBudgetExceeded}
           isBudgetWarning={isBudgetWarning}

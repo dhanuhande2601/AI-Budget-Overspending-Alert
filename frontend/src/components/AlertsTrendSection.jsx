@@ -1,4 +1,5 @@
 import { FiAlertTriangle } from 'react-icons/fi'
+
 import {
   CartesianGrid,
   Legend,
@@ -8,7 +9,18 @@ import {
   Tooltip,
   XAxis,
   YAxis,
+  PieChart,
+  Pie,
+  Cell,
 } from 'recharts'
+
+const COLORS = [
+  '#0088FE',
+  '#00C49F',
+  '#FFBB28',
+  '#FF8042',
+  '#AA00FF',
+]
 
 function AlertsTrendSection({
   alerts = [],
@@ -17,7 +29,10 @@ function AlertsTrendSection({
   isBudgetWarning,
   trendData = [],
 }) {
+  console.log("ALERTS =", alerts)
+  console.log("ANALYTICS =", analytics)
   const budgetAlerts = analytics?.budget_alerts || []
+  const pieData = analytics?.category_summary || []
 
   return (
     <div className="panel">
@@ -25,10 +40,31 @@ function AlertsTrendSection({
 
       <div className="alert-list">
         {alerts.length ? (
-          alerts.map((alert) => (
-            <div className="alert-row" key={alert.category}>
+          alerts.map((alert, index) => (
+            <div
+              className="alert-row"
+              key={`${alert.category}-${index}`}
+            >
               <FiAlertTriangle />
-              <span>{alert.alert}</span>
+
+              <div>
+                <strong>{alert.category}</strong>
+
+                <p>
+                  {alert.message || alert.alert}
+                </p>
+
+                {alert.ai_recommendation && (
+                  <p
+                    style={{
+                      color: '#2f6fed',
+                      marginTop: '6px',
+                    }}
+                  >
+                    🤖 {alert.ai_recommendation}
+                  </p>
+                )}
+              </div>
             </div>
           ))
         ) : (
@@ -57,27 +93,88 @@ function AlertsTrendSection({
         </div>
       )}
 
-      <div className="section-block">
-        <h2>Monthly Spending Trend</h2>
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: '1fr 1fr',
+          gap: '20px',
+          marginTop: '20px',
+        }}
+      >
+        {/* PIE CHART */}
 
-        <div className="chart-frame">
-          <ResponsiveContainer width="100%" height={250}>
-            <LineChart data={trendData}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="day" />
-              <YAxis />
-              <Tooltip />
-              <Legend />
+        {pieData.length > 0 && (
+          <div className="section-block">
+            <h2>Category Wise Spending</h2>
 
-              <Line
-                type="monotone"
-                dataKey="amount"
-                stroke="#2f6fed"
-                strokeWidth={2}
-              />
-            </LineChart>
-          </ResponsiveContainer>
+            <div className="chart-frame">
+              <ResponsiveContainer
+                width="100%"
+                height={220}
+              >
+                <PieChart>
+                  <Pie
+                    data={pieData}
+                    dataKey="amount"
+                    nameKey="category"
+                    cx="50%"
+                    cy="50%"
+                    outerRadius={70}
+                    label
+                  >
+                    {pieData.map((entry, index) => (
+                      <Cell
+                        key={entry.category}
+                        fill={COLORS[index % COLORS.length]}
+                      />
+                    ))}
+                  </Pie>
+
+                  <Tooltip />
+                  <Legend />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        )}
+
+        {/* MONTHLY TREND */}
+
+        <div className="section-block">
+          <h2>Monthly Spending Trend</h2>
+
+          <div className="chart-frame">
+            <ResponsiveContainer
+              width="100%"
+              height={220}
+            >
+              <LineChart data={trendData}>
+                <CartesianGrid strokeDasharray="3 3" />
+
+                <XAxis dataKey="month" />
+
+                <YAxis />
+
+                <Tooltip />
+
+                <Legend />
+
+                <Line
+                  type="monotone"
+                  dataKey="amount"
+                  name="Spending"
+                  stroke="#2f6fed"
+                  strokeWidth={3}
+                  dot={{ r: 5 }}
+                  activeDot={{ r: 8 }}
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
         </div>
+      </div>
+      <div className="section-block">
+        
       </div>
     </div>
   )
@@ -105,7 +202,11 @@ function FallbackAlert({
     )
   }
 
-  return <p className="muted">No overspending alerts.</p>
+  return (
+    <p className="muted">
+      No overspending alerts.
+    </p>
+  )
 }
 
 export default AlertsTrendSection

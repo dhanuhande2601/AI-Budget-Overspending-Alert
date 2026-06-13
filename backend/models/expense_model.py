@@ -1,26 +1,45 @@
 from database.db import db
+from datetime import datetime
+import pytz
+
+india_tz = pytz.timezone("Asia/Kolkata")
+
 
 class Expense(db.Model):
 
-    __tablename__ = 'expenses'
+    __tablename__ = "expenses"
 
-    id = db.Column(db.Integer, primary_key=True)
+    id = db.Column(
+        db.Integer,
+        primary_key=True
+    )
 
     user_id = db.Column(
         db.Integer,
-        db.ForeignKey('users.id'),
+        db.ForeignKey("users.id"),
         nullable=False
     )
 
-    title = db.Column(db.String(200), nullable=False)
+    title = db.Column(
+        db.String(200),
+        nullable=False
+    )
 
-    amount = db.Column(db.Float, nullable=False)
+    amount = db.Column(
+        db.Float,
+        nullable=False
+    )
 
-    category = db.Column(db.String(100), nullable=False)
+    category = db.Column(
+        db.String(100),
+        nullable=False
+    )
 
-    payment_method = db.Column(db.String(100))
+    payment_method = db.Column(
+        db.String(100)
+    )
 
     created_at = db.Column(
         db.DateTime,
-        server_default=db.func.now()
+        default=lambda: datetime.now(india_tz)
     )

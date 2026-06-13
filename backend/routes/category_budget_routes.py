@@ -54,7 +54,7 @@ def set_budget():
 
             user_id=user_id,
 
-            category=category
+            category=category.lower()
 
         ).first()
 
@@ -138,12 +138,11 @@ def category_summary():
 
     for budget in budgets:
 
-        expenses = Expense.query.filter_by(
-
-            user_id=user_id,
-
-            category=budget.category
-
+        expenses = Expense.query.filter(
+            Expense.user_id == user_id,
+            db.func.lower(
+                Expense.category
+            ) == budget.category.lower()
         ).all()
 
         spent = sum(
@@ -211,12 +210,11 @@ def category_alerts():
 
     for budget in budgets:
 
-        expenses = Expense.query.filter_by(
-
-            user_id=user_id,
-
-            category=budget.category
-
+        expenses = Expense.query.filter(
+            Expense.user_id == user_id,
+            db.func.lower(
+                Expense.category
+            ) == budget.category.lower()
         ).all()
 
         spent = sum(
@@ -267,7 +265,10 @@ def category_alerts():
 
             })
 
-    return jsonify(alerts)
+    return jsonify({
+        "alerts": alerts,
+        "count": len(alerts)
+    })
 
 
 @category_budget.route(
@@ -323,7 +324,12 @@ def savings_recommendations():
     total_possible_savings = 0
 
     for budget in budgets:
-        expenses = Expense.query.filter_by(user_id=user_id, category=budget.category).all()
+        expenses = Expense.query.filter(
+            Expense.user_id == user_id,
+            db.func.lower(
+                Expense.category
+            ) == budget.category.lower()
+        ).all()
         spent = sum(e.amount for e in expenses)
         remaining = budget.monthly_limit - spent
         if remaining > 0:

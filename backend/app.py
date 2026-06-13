@@ -10,13 +10,16 @@ from flask_jwt_extended import jwt_required, get_jwt_identity
 # from routes.user import user_bp
 from config import Config
 from database.db import db
-
+from services.festival_sync_service import (
+    sync_festivals
+)
 # Models
 from models.user_model import User
 from models.expense_model import Expense
 from models.budget_model import Budget
 from models.category_budget_model import CategoryBudget
-
+from models.budget_notification_model import BudgetNotification
+from models.festival_model import Festival
 # Routes
 from routes.auth_routes import auth
 from routes.expense_routes import expense
@@ -33,10 +36,10 @@ from routes.category_alert_routes import (
 from extensions import mail
 
 # Scheduler
-from scheduler.job import start_scheduler
-
+from flask_migrate import Migrate
 
 app = Flask(__name__)
+
 
 # =========================================
 # APP CONFIG
@@ -53,7 +56,7 @@ app.config['SQLALCHEMY_DATABASE_URI'] = (
 )
 
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-
+app.config.from_object(Config) 
 # =========================================
 # EMAIL CONFIG
 # =========================================
@@ -71,7 +74,7 @@ app.config['MAIL_DEFAULT_SENDER'] = Config.MAIL_DEFAULT_SENDER
 db.init_app(app)
 
 mail.init_app(app)
-
+migrate = Migrate(app, db)
 jwt = JWTManager(app)
 
 CORS(
@@ -160,6 +163,8 @@ def home():
 
 def init_database():
     with app.app_context():
+        print("Festival columns:")
+        print(Festival.__table__.columns.keys())
         db.create_all()
         ensure_user_alert_columns()
         ensure_category_budget_columns()
@@ -246,16 +251,31 @@ def test_email():
     )
 
     return "Email Sent"
+@app.route("/test-sms")
+def test_sms():
 
+    from services.sms_service import send_sms
+
+    sid = send_sms(
+        "+918010505018",
+        "AI Budget Alert SMS Test"
+    )
+
+    return {
+        "status": "success",
+        "sid": sid
+    }
 # =========================================
 # RUN APP
 # =========================================
-
+with app.app_context():
+    print("DB URI =", app.config["SQLALCHEMY_DATABASE_URI"])
+    print("DB Engine URL =", db.engine.url)
+    #sync_festivals()
+    print("Festival Sync Done")
 if __name__ == '__main__':
 
     init_database()
-
-    start_scheduler(app)
 
     app.run(
         debug=True,
