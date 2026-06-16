@@ -12,6 +12,12 @@ def start_scheduler(app):
         return _scheduler
 
     scheduler = BackgroundScheduler()
+    def reset_monthly_alert_flags():
+        users = User.query.all()
+        for user in users:
+            user.budget_alert_50_sent = False
+            user.budget_alert_75_sent = False
+        db.session.commit()
 
     def run_with_app_context(task):
         with app.app_context():

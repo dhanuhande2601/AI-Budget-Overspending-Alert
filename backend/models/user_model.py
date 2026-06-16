@@ -11,8 +11,8 @@ class User(db.Model):
 
     password = db.Column(db.String(255), nullable=False)
 
-    phone = db.Column(db.String(20))
-
+    phone = db.Column(db.String(20),nullable=True)
+    profile_photo = db.Column(db.Text, nullable=True)
     created_at = db.Column(db.DateTime, server_default=db.func.now())
     monthly_income = db.Column(
         db.Float,

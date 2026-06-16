@@ -1,6 +1,5 @@
 
-export const API_BASE = 'http://localhost:5000/api'
-
+export const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000/api'
 export function getAuthHeaders(token) {
   return {
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
@@ -139,30 +138,19 @@ export async function getMonthlyInsights(
   )
 }
 
-export async function getCategoryPredictions(
-  token
-) {
-  return apiRequest(
-    '/ai/category-predictions',
-    {
-      headers:
-        getAuthHeaders(token),
-    }
-  )
+export async function getCategoryPredictions() {
+  return apiRequest('/ai/category-predictions', {
+    method: 'GET',
+    headers: getAuthHeaders()
+  })
 }
 
-export async function getRecommendations(
-  token
-) {
-  return apiRequest(
-    '/ai/recommendations',
-    {
-      headers:
-        getAuthHeaders(token),
-    }
-  )
+export async function getRecommendations() {
+  return apiRequest('/ai/recommendations', {
+    method: 'GET',
+    headers: getAuthHeaders()
+  })
 }
-
 /* =========================
    EXPENSES
 ========================= */
@@ -231,16 +219,11 @@ export async function getCategoryAlerts(
   )
 }
 
-export async function getCategoryBudgetAlerts(
-  token
-) {
-  return apiRequest(
-    '/category/alerts',
-    {
-      headers:
-        getAuthHeaders(token),
-    }
-  )
+export async function getCategoryBudgetAlerts() {
+  return apiRequest('/category-budget/alerts', {
+    method: 'GET',
+    headers: getAuthHeaders()
+  })
 }
 
 /* =========================
@@ -305,4 +288,21 @@ export async function setCategoryBudgets(
       body: JSON.stringify(budgetData),
     }
   )
+}
+// SMS Expense - Preview
+export async function previewSMSExpense(smsText) {
+  return apiRequest('/expense/sms/preview', {
+    method: 'POST',
+    headers: getAuthHeaders(),
+    body: JSON.stringify({ sms_text: smsText })
+  })
+}
+
+// SMS Expense - Confirm & Save
+export async function addSMSExpense(smsText) {
+  return apiRequest('/expense/sms/add', {
+    method: 'POST',
+    headers: getAuthHeaders(),
+    body: JSON.stringify({ sms_text: smsText })
+  })
 }

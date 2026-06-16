@@ -388,8 +388,8 @@ def update_profile():
     if 'phone' in data:
         phone = (data.get('phone') or '').strip()
         user.phone = phone
-
-    db.session.commit()
+    if 'profile_photo' in data:                     
+        user.profile_photo = data['profile_photo']
 
     budget_data = Budget.query.filter_by(
         user_id=user.id
@@ -410,4 +410,5 @@ def update_profile():
         "monthly_savings": user.monthly_savings,
         "available_budget": user.available_budget,
         "monthly_budget": monthly_budget,
+        'profile_photo': user.profile_photo
     }), 200

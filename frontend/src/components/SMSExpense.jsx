@@ -1,0 +1,104 @@
+import { useState } from 'react'
+import { MdSms } from 'react-icons/md'
+import { previewSMSExpense, addSMSExpense } from '../api/budgetApi'
+
+export default function SMSExpense({ onExpenseAdded }) {
+  const [smsText, setSmsText] = useState('')
+  const [preview, setPreview] = useState(null)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+  const [success, setSuccess] = useState('')
+
+  const handlePreview = async () => {
+    if (!smsText.trim()) return
+    setLoading(true)
+    setError('')
+    setPreview(null)
+    try {
+      const data = await previewSMSExpense(smsText)
+      if (data.error) {
+        setError(data.error)
+      } else {
+        setPreview(data)
+      }
+    } catch {
+      setError('SMS parse karne me error aaya')
+    }
+    setLoading(false)
+  }
+
+  const handleConfirm = async () => {
+    setLoading(true)
+    setError('')
+    try {
+      const data = await addSMSExpense(smsText)
+      if (data.error) {
+        setError(data.error)
+      } else {
+        setSuccess('Expense successfully add ho gaya!')
+        setSmsText('')
+        setPreview(null)
+        onExpenseAdded()  // dashboard refresh
+      }
+    } catch {
+      setError('Expense save karne me error aaya')
+    }
+    setLoading(false)
+  }
+
+  return (
+    <div className="bg-white rounded-2xl p-5 shadow mb-4">
+      <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
+        <MdSms className="text-blue-500" />
+        Bank SMS se Expense Add Karo
+      </h3>
+
+      <textarea
+        className="w-full border rounded-xl p-3 text-sm resize-none h-24"
+        placeholder="Yahan bank ka SMS paste karo... e.g. INR 500.00 debited from your account..."
+        value={smsText}
+        onChange={(e) => {
+          setSmsText(e.target.value)
+          setPreview(null)
+          setSuccess('')
+          setError('')
+        }}
+      />
+
+      <button
+        onClick={handlePreview}
+        disabled={loading || !smsText.trim()}
+        className="mt-2 bg-blue-500 text-white px-4 py-2 rounded-xl text-sm hover:bg-blue-600 disabled:opacity-50"
+      >
+        {loading ? 'Parse ho raha hai...' : 'SMS Preview Karo'}
+      </button>
+
+      {/* Preview Result */}
+      {preview && (
+        <div className="mt-4 bg-blue-50 rounded-xl p-4 text-sm">
+          <p className="font-semibold text-blue-700 mb-2">Detected Expense:</p>
+          <div className="grid grid-cols-2 gap-2 text-gray-700">
+            <span>Amount:</span>
+            <span className="font-medium">₹{preview.amount}</span>
+            <span>Category:</span>
+            <span className="font-medium">{preview.category}</span>
+            <span>Description:</span>
+            <span className="font-medium">{preview.description}</span>
+            <span>Date:</span>
+            <span className="font-medium">{preview.date}</span>
+          </div>
+          <button
+            onClick={handleConfirm}
+            disabled={loading}
+            className="mt-3 bg-green-500 text-white px-4 py-2 rounded-xl text-sm hover:bg-green-600 disabled:opacity-50 w-full"
+          >
+            {loading ? 'Save ho raha hai...' : '✅ Confirm & Save Karo'}
+          </button>
+        </div>
+      )}
+
+      {error && <p className="text-red-500 text-sm mt-2">{error}</p>}
+      {success && <p className="text-green-600 text-sm mt-2">{success}</p>}
+    </div>
+  )
+}

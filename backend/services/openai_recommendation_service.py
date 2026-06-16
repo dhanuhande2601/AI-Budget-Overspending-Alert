@@ -48,12 +48,14 @@ Suggestion: Reduce food delivery orders and cook at home more often.
             budget
         )
 
-        response = client.responses.create(
-            model="gpt-5-mini",
-            input=prompt
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "user", "content": prompt}
+            ],
+            max_tokens=150
         )
-
-        ai_text = response.output_text.strip()
+        ai_text = response.choices[0].message.content.strip()
 
         print(
             "AI RESPONSE =",

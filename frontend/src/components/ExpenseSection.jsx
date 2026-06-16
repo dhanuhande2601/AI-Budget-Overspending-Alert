@@ -19,11 +19,15 @@ function ExpenseSection({
   const SpeechRecognition =
     window.SpeechRecognition ||
     window.webkitSpeechRecognition
+
   const recognition = SpeechRecognition
     ? new SpeechRecognition()
     : null
+
+  if (recognition) {
     recognition.continuous = false
     recognition.lang = 'en-US'
+  }
   const startListening = () => {
 
     recognition.onresult = (event) => {
@@ -143,11 +147,18 @@ function ExpenseSection({
       console.log("Category =", category)
       console.log("Payment =", paymentMethod)
 }
-     if (!recognition) {
-      alert("Speech Recognition not supported")
-      return
+     const startListening = () => {
+      if (!recognition) {
+        alert("Speech Recognition not supported in this browser")
+        return
+      }
+
+      recognition.onresult = (event) => {
+        // ... baaki code same rehta hai ...
+      }
+
+      recognition.start()
     }
-    recognition.start()
   }
 
   const categories = Array.from(new Set(expenses.map((expense) => expense.category).filter(Boolean)))

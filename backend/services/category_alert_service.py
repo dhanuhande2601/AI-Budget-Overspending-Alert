@@ -20,7 +20,7 @@ from database.db import db
 
 
 def check_category_alerts(user_id):
-
+    festival_message = ""
     alerts = []
 
     budgets = CategoryBudget.query.filter_by(
@@ -172,7 +172,7 @@ def check_category_alerts(user_id):
                     spent,
                     limit
                 ),
-                "festival_prediction": festival_message
+                "festival_prediction": festival_message if festival_message else ""
             }
 
             alerts.append(

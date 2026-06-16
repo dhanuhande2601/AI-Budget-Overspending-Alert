@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-
+import AIRecommendations from './components/AIRecommendations'
 import {
   apiRequest,
   downloadBudgetReport,
@@ -14,6 +14,8 @@ import {
   getLatestExpenses,
   updateProfile,
   setCategoryBudgets,
+  getRecommendations,
+  getCategoryPredictions,
 } from './api/budgetApi'
 
 import AlertsTrendSection from './components/AlertsTrendSection'
@@ -25,7 +27,9 @@ import CategoryBudgetSetup from './components/CategoryBudgetSetup'
 import LatestExpensesByCategory from './components/LatestExpensesByCategory'
 import MonthlyInsights from './components/MonthlyInsights'
 import ProfileModal from './components/ProfileModal'
-import AIRecommendations from './components/AIRecommendations'
+import SMSExpense from './components/SMSExpense'
+import CategoryPredictionsChart from './components/CategoryPredictionsChart'
+import CategoryPredictionsChart from './components/CategoryPredictionsChart'
 import './App.css'
 const emptyAuth = {
   name: '',
@@ -59,7 +63,7 @@ function App() {
 
   const [expenseForm, setExpenseForm] = useState(emptyExpense)
   const [editingExpenseId, setEditingExpenseId] = useState(null)
-
+  const [categoryPredictions, setCategoryPredictions] = useState(null)
   const [user, setUser] = useState(null)
   const [expenses, setExpenses] = useState([])
   const [analytics, setAnalytics] = useState(emptyAnalytics)
@@ -70,14 +74,15 @@ function App() {
 
   const [searchTerm, setSearchTerm] = useState('')
   const [categoryFilter, setCategoryFilter] = useState('')
-
+  // Add karo
+  const [categoryPredictions, setCategoryPredictions] = useState(null)
   const [showCategoryBudget, setShowCategoryBudget] = useState(false)
   const [showProfile, setShowProfile] = useState(false)
   const [showExpenses, setShowExpenses] = useState(false)
   const [newBudget, setNewBudget] = useState('')
   const [newIncome, setNewIncome] = useState('')
   const [newSavings, setNewSavings] = useState('')
-
+  const [recommendations, setRecommendations] = useState(null)
   const [categoryBudgetForm, setCategoryBudgetForm] = useState({
     food: '',
     travel: '',
@@ -85,7 +90,21 @@ function App() {
     health: '',
     adventure: '',
   })
+  const predData = await getCategoryPredictions()
+  setCategoryPredictions(predData)
+  const [dashboard, alertsData, categoryData, recoData, predictionsData] = await Promise.all([
+    fetchDashboardData(),
+    getLatestExpenses(),
+    getCategoryBudgets(),
+    getRecommendations(),
+    getCategoryPredictions()   
+  ])
 
+  setDashboardData(dashboard)
+  setAlerts(alertsData)
+  setCategoryBudgets(categoryData)
+  setRecommendations(recoData)
+  setCategoryPredictions(predictionsData) 
   const [categoryBudgets, setCategoryBudgets] = useState([])
 
   const [categoryAlerts, setCategoryAlerts] = useState([])
@@ -172,32 +191,23 @@ function App() {
     setCategoryBudgets(dashboardData.category_budgets || [])
   }, [])
 
-  const refreshDashboard = useCallback(async () => {
+  const fetchDashboardData = async () => {
     try {
-      const dashboardData = await fetchDashboardData(token)
+      const [dashboard, alertsData, categoryData, recoData] = await Promise.all([
+        fetchDashboardData(),
+        getLatestExpenses(),
+        getCategoryBudgets(),
+        getRecommendations()   
+      ])
 
-      const alertsData = await getCategoryAlerts(token)
-      setCategoryAlerts(alertsData || [])
-
-      const latest = await getLatestExpenses(token)
-
-      console.log("LATEST =", latest)
-
-      setLatestExpenses(
-        Array.isArray(latest)
-          ? latest
-          : latest?.expenses || []
-      )
-      const insights = await getMonthlyInsights(token)
-      setMonthlyInsights(insights)
-
-      if (dashboardData) {
-        updateDashboard(dashboardData)
-      }
-    } catch (error) {
-      console.log(error)
+      setDashboardData(dashboard)
+      setAlerts(alertsData)
+      setCategoryBudgets(categoryData)
+      setRecommendations(recoData)   
+    } catch (err) {
+      console.error('Dashboard load error:', err)
     }
-  }, [token, updateDashboard])
+  }
 
   function updateAuthForm(field, value) {
     setAuthForm((currentForm) => ({
@@ -676,10 +686,24 @@ function App() {
           onSubmit={handleSaveExpense}
           searchTerm={searchTerm}
         />
+        <ExpenseSection 
+        />
+        <SMSExpense onExpenseAdded={fetchDashboardData} />
 
         <MonthlyInsights
           data={monthlyInsights}
         />
+        {recommendations && (
+          <AIRecommendations
+            recommendations={recommendations}
+          />
+        )}
+        {categoryPredictions && (
+          <CategoryPredictionsChart data={categoryPredictions} />
+        )}
+        {categoryPredictions && (
+          <CategoryPredictionsChart predictions={categoryPredictions} />
+        )}
 
         <LatestExpensesByCategory
           data={latestExpenses}

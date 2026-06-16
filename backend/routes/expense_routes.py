@@ -5,13 +5,14 @@ from services.category_alert_service import (check_category_alerts)
 from services.email_service import (send_category_alert)
 from models.budget_notification_model import BudgetNotification
 from models.expense_model import Expense
-from models.user_model import User
 from services.backup_service import backup_expenses
 from services.sms_parser import parse_expense_sms
 from services.email_service import send_budget_alert
 from flask import request
 from models.category_budget_model import CategoryBudget
 from services.ai_budget_engine import detect_overspending
+from services.sms_service import send_sms
+from models.user_model import User
 expense = Blueprint(
     'expense',
     __name__
@@ -135,6 +136,14 @@ def add_expense():
         current_user_id
     )
 
+    sms_message = (
+        f"Expense Added\n"
+        f"Title: {title}\n"
+        f"Amount: ₹{amount}\n"
+        f"Category: {category}\n"
+        f"Total Spending: ₹{total_spending}"
+    )
+
     if current_user:
 
         # Category alerts should include the new expense
@@ -146,6 +155,7 @@ def add_expense():
         print("CATEGORY ALERT RESULT =", alerts)
 
         for alert in alerts:
+            
             try:
                 send_category_alert(
                     current_user.email,
@@ -153,6 +163,7 @@ def add_expense():
                     alert["percent"],
                     alert["type"]
                 )
+                
             except Exception as error:
                 print("Category email sending failed:", error)
 
@@ -166,32 +177,27 @@ def add_expense():
                 total_spending /
                 monthly_budget
             ) * 100
+            if current_user.phone:
+                send_sms(
+                    current_user.phone,
+                    f"⚠ Budget Alert: {alert['category']} reached {alert['percent']}% of limit"
+                )
 
             try:
 
-                if (
-                    percentage >= 50
-                    and percentage < 75
-                ):
-
-                    send_budget_alert(
-                        current_user.email,
-                        50,
-                        total_spending,
-                        monthly_budget
+                if percentage >= 75 and not user.budget_alert_75_sent:
+                    send_budget_alert_email(
+                        user.email, user.name, percentage, spent, budget
                     )
+                    user.budget_alert_75_sent = True
+                    db.session.commit()
 
-                elif (
-                    percentage >= 75
-                    and percentage < 90
-                ):
-
-                    send_budget_alert(
-                        current_user.email,
-                        75,
-                        total_spending,
-                        monthly_budget
+                elif percentage >= 50 and not user.budget_alert_50_sent:
+                    send_budget_alert_email(
+                        user.email, user.name, percentage, spent, budget
                     )
+                    user.budget_alert_50_sent = True
+                    db.session.commit()
 
                 elif (
                     percentage >= 90
@@ -208,11 +214,14 @@ def add_expense():
                 elif percentage >= 100:
 
                     send_budget_alert(
+                        
                         current_user.email,
                         100,
                         total_spending,
                         monthly_budget
+                        
                     )
+                
 
             except Exception as error:
 
