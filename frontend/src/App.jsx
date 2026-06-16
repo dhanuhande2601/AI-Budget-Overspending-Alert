@@ -88,21 +88,6 @@ function App() {
     health: '',
     adventure: '',
   })
-  const predData = await getCategoryPredictions()
-  setCategoryPredictions(predData)
-  const [dashboard, alertsData, categoryData, recoData, predictionsData] = await Promise.all([
-    fetchDashboardData(),
-    getLatestExpenses(),
-    getCategoryBudgets(),
-    getRecommendations(),
-    getCategoryPredictions()   
-  ])
-
-  setDashboardData(dashboard)
-  setAlerts(alertsData)
-  setCategoryBudgets(categoryData)
-  setRecommendations(recoData)
-  setCategoryPredictions(predictionsData) 
   const [categoryBudgets, setCategoryBudgets] = useState([])
 
   const [categoryAlerts, setCategoryAlerts] = useState([])
@@ -188,6 +173,23 @@ function App() {
     setAlerts(dashboardData.alerts || [])
     setCategoryBudgets(dashboardData.category_budgets || [])
   }, [])
+  const refreshDashboard = useCallback(async () => {
+    try {
+      const data = await fetchDashboardData(token)
+      updateDashboard(data)
+
+      const [recoData, predData, insightsData] = await Promise.all([
+        getRecommendations(token),
+        getCategoryPredictions(token),
+        getMonthlyInsights(token),
+      ])
+      setRecommendations(recoData)
+      setCategoryPredictions(predData)
+      setMonthlyInsights(insightsData)
+    } catch (error) {
+      console.log(error)
+    }
+  }, [token, updateDashboard])
 
   const fetchDashboardData = async () => {
     try {

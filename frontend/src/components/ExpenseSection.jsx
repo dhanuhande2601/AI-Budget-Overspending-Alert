@@ -48,55 +48,6 @@ function ExpenseSection({
           ? amountMatch[0]
           : ""
 
-      const categoryKeywords = {
-        Food: [
-          "swiggy",
-          "zomato",
-          "restaurant",
-          "cafe",
-          "food",
-          "pizza",
-          "hotel"
-        ],
-        Transport: [
-          "uber",
-          "ola",
-          "rapido",
-          "metro",
-          "fuel",
-          "petrol",
-          "diesel",
-          "parking"
-        ],
-        Shopping: [
-          "amazon",
-          "flipkart",
-          "myntra",
-          "shopping",
-          "store"
-        ],
-        Bills: [
-          "electricity",
-          "bill",
-          "recharge",
-          "wifi",
-          "mobile"
-        ],
-        Entertainment: [
-          "movie",
-          "netflix",
-          "spotify",
-          "cinema"
-        ],
-        Health: [
-          "medical",
-          "pharmacy",
-          "hospital",
-          "clinic",
-          "medicine"
-        ]
-      }
-
       let category = ""
 
       for (const [cat, keywords] of Object.entries(categoryKeywords)) {
