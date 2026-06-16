@@ -29,7 +29,6 @@ import MonthlyInsights from './components/MonthlyInsights'
 import ProfileModal from './components/ProfileModal'
 import SMSExpense from './components/SMSExpense'
 import CategoryPredictionsChart from './components/CategoryPredictionsChart'
-import CategoryPredictionsChart from './components/CategoryPredictionsChart'
 import './App.css'
 const emptyAuth = {
   name: '',
@@ -74,8 +73,7 @@ function App() {
 
   const [searchTerm, setSearchTerm] = useState('')
   const [categoryFilter, setCategoryFilter] = useState('')
-  // Add karo
-  const [categoryPredictions, setCategoryPredictions] = useState(null)
+
   const [showCategoryBudget, setShowCategoryBudget] = useState(false)
   const [showProfile, setShowProfile] = useState(false)
   const [showExpenses, setShowExpenses] = useState(false)
@@ -479,30 +477,6 @@ function App() {
     }
   }, [token, refreshDashboard, loadCategoryBudgets, loadLatestExpenses, loadCategoryAlerts])
 
-  useEffect(() => {
-    if (!token) return
-
-    let isCurrent = true
-
-    fetchDashboardData(token)
-      .then((dashboardData) => {
-        if (isCurrent && dashboardData) {
-          updateDashboard(dashboardData)
-        }
-      })
-      .catch((error) => {
-        if (!isCurrent) return
-
-        setMessage(error.message)
-        localStorage.removeItem('budget_token')
-        setToken('')
-      })
-
-    return () => {
-      isCurrent = false
-    }
-  }, [token, updateDashboard])
-
   async function handleBudgetUpdate() {
     try {
 
@@ -701,9 +675,7 @@ function App() {
         {categoryPredictions && (
           <CategoryPredictionsChart data={categoryPredictions} />
         )}
-        {categoryPredictions && (
-          <CategoryPredictionsChart predictions={categoryPredictions} />
-        )}
+        
 
         <LatestExpensesByCategory
           data={latestExpenses}

@@ -238,33 +238,7 @@ def ensure_user_alert_columns():
 
     db.session.commit()
 
-@app.route("/test-email")
-def test_email():
 
-    from services.email_service import send_budget_alert
-
-    send_budget_alert(
-        "dhanuhande2601@gmail.com",
-        50,
-        10000,
-        20000
-    )
-
-    return "Email Sent"
-@app.route("/test-sms")
-def test_sms():
-
-    from services.sms_service import send_sms
-
-    sid = send_sms(
-        "+918010505018",
-        "AI Budget Alert SMS Test"
-    )
-
-    return {
-        "status": "success",
-        "sid": sid
-    }
 # =========================================
 # RUN APP
 # =========================================
