@@ -19,25 +19,37 @@ function DashboardHeader({
   const riskScore = analytics?.risk_score || 0
   const money = formatAmount || ((amt) => `₹${Number(amt || 0).toLocaleString()}`)
 
-  const riskStyle = {
-    background: riskScore >= 70 ? '#fef2f2' : riskScore >= 40 ? '#fffbeb' : '#f0fdf4',
-    color:      riskScore >= 70 ? '#dc2626' : riskScore >= 40 ? '#d97706' : '#16a34a',
-    border: `1px solid ${riskScore >= 70 ? '#fecaca' : riskScore >= 40 ? '#fde68a' : '#bbf7d0'}`,
-  }
+  const riskLevel = riskScore >= 70 ? 'high' : riskScore >= 40 ? 'medium' : 'low'
 
   const [notifPermission, setNotifPermission] = useState(getNotificationPermission())
+  const [notifMessage, setNotifMessage] = useState('')
 
   useEffect(() => {
     setNotifPermission(getNotificationPermission())
   }, [])
 
+  useEffect(() => {
+    if (!notifMessage) return
+    const timer = setTimeout(() => setNotifMessage(''), 3000)
+    return () => clearTimeout(timer)
+  }, [notifMessage])
+
   async function handleNotificationClick() {
     if (notifPermission === 'denied') {
-      alert('Notifications are blocked. Please enable them in your browser settings.')
+      setNotifMessage('Blocked — enable notifications in browser settings')
+      return
+    }
+    if (notifPermission === 'granted') {
+      setNotifMessage('Notifications are already enabled')
       return
     }
     const result = await requestNotificationPermission()
     setNotifPermission(result)
+    setNotifMessage(
+      result === 'granted'
+        ? 'Notifications enabled successfully'
+        : 'Notifications were not enabled'
+    )
   }
 
   return (
@@ -48,7 +60,7 @@ function DashboardHeader({
           <h1>Welcome, {user?.name}</h1>
         </div>
 
-        <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: '10px', alignItems: 'center', position: 'relative' }}>
           <button
             className="dark-toggle"
             onClick={handleNotificationClick}
@@ -60,6 +72,27 @@ function DashboardHeader({
           >
             {notifPermission === 'granted' ? <FiBell size={18} /> : <FiBellOff size={18} />}
           </button>
+
+          {notifMessage && (
+            <div
+              style={{
+                position: 'absolute',
+                top: '110%',
+                left: 0,
+                background: 'var(--card)',
+                color: 'var(--text-primary)',
+                border: '1px solid var(--soft-border)',
+                borderRadius: '8px',
+                padding: '8px 12px',
+                fontSize: '12px',
+                boxShadow: 'var(--shadow-md)',
+                whiteSpace: 'nowrap',
+                zIndex: 50,
+              }}
+            >
+              {notifMessage}
+            </div>
+          )}
 
           <button className="dark-toggle" onClick={onToggleDark} title="Toggle dark mode">
             {darkMode ? <FiSun size={18} /> : <FiMoon size={18} />}
@@ -89,7 +122,7 @@ function DashboardHeader({
           <h2>{money(budget)}</h2>
         </div>
 
-        <div className="overview-card risk-card" style={riskStyle}>
+        <div className={`overview-card risk-card risk-${riskLevel}`}>
           <h4>Risk Score</h4>
           <h2>{riskScore}/100</h2>
           <p>

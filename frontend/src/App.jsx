@@ -157,10 +157,15 @@ function App() {
   }, [expenses])
 
   const weeklyTrendData = useMemo(() => {
-    // ISO-week-of-year, paired with year, so weeks never merge across years
-    function getWeekKey(date) {
+    // ISO-week-of-year, paired with year, so weeks never merge across years.
+    // We also compute the Monday of that week to show a readable date range
+    // instead of a confusing "W24 '26" style label.
+    function getWeekInfo(date) {
       const tempDate = new Date(date.getFullYear(), date.getMonth(), date.getDate())
       const dayNum = (tempDate.getDay() + 6) % 7 // Monday = 0
+      const mondayOfWeek = new Date(tempDate)
+      mondayOfWeek.setDate(tempDate.getDate() - dayNum)
+
       tempDate.setDate(tempDate.getDate() - dayNum + 3)
       const firstThursday = new Date(tempDate.getFullYear(), 0, 4)
       const weekNumber =
@@ -168,15 +173,21 @@ function App() {
         Math.round(
           ((tempDate - firstThursday) / 86400000 - 3 + ((firstThursday.getDay() + 6) % 7)) / 7
         )
-      return { year: tempDate.getFullYear(), week: weekNumber }
+      return { year: tempDate.getFullYear(), week: weekNumber, mondayOfWeek }
     }
 
     const weeklyData = {}
     expenses.forEach((expense) => {
       const date = new Date(expense.created_at)
-      const { year, week } = getWeekKey(date)
+      const { year, week, mondayOfWeek } = getWeekInfo(date)
       const key = `${year}-W${week}`
-      const label = `W${week} '${String(year).slice(2)}`
+      // e.g. "Jun 8-14" — much clearer than a raw week number
+      const sundayOfWeek = new Date(mondayOfWeek)
+      sundayOfWeek.setDate(mondayOfWeek.getDate() + 6)
+      const startLabel = mondayOfWeek.toLocaleString('default', { month: 'short', day: 'numeric' })
+      const endLabel = sundayOfWeek.getDate()
+      const label = `${startLabel}-${endLabel}`
+
       if (!weeklyData[key]) weeklyData[key] = { label, amount: 0, sortKey: key }
       weeklyData[key].amount += Number(expense.amount || 0)
     })

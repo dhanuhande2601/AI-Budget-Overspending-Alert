@@ -187,6 +187,38 @@ h2 {
 }
  
 .risk-card { border-left: 5px solid #ef4444; }
+
+.risk-low {
+  background: #f0fdf4;
+  color: #16a34a;
+  border-color: #bbf7d0;
+}
+.risk-medium {
+  background: #fffbeb;
+  color: #d97706;
+  border-color: #fde68a;
+}
+.risk-high {
+  background: #fef2f2;
+  color: #dc2626;
+  border-color: #fecaca;
+}
+
+body.dark .risk-low {
+  background: #14532d;
+  color: #86efac;
+  border-color: #166534;
+}
+body.dark .risk-medium {
+  background: #78350f;
+  color: #fde68a;
+  border-color: #92400e;
+}
+body.dark .risk-high {
+  background: #7f1d1d;
+  color: #fca5a5;
+  border-color: #991b1b;
+}
  
 /* =====================
    DARK TOGGLE BUTTON
@@ -706,6 +738,16 @@ body.dark .danger-alert { background: #7f1d1d; color: #fca5a5; }
   background: var(--input-bg);
   color: var(--text-secondary);
   transition: background var(--transition);
+}
+
+.ai-recommendation-box {
+  background: var(--input-bg);
+  border: 1px solid var(--soft-border);
+  padding: 12px;
+  border-radius: 8px;
+  margin-top: 10px;
+  color: var(--text-primary);
+  transition: background var(--transition), border-color var(--transition);
 }
  
 /* =====================

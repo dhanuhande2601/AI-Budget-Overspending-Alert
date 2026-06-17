@@ -34,14 +34,7 @@ function MonthlyInsights({ data }) {
 
       <hr />
 
-      <div
-        style={{
-          background: "#eef6ff",
-          padding: "12px",
-          borderRadius: "8px",
-          marginTop: "10px",
-        }}
-      >
+      <div className="ai-recommendation-box">
         <h3>🤖 AI Recommendation</h3>
 
         <p
