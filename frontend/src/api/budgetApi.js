@@ -138,17 +138,17 @@ export async function getMonthlyInsights(
   )
 }
 
-export async function getCategoryPredictions() {
+export async function getCategoryPredictions(token) {
   return apiRequest('/ai/category-predictions', {
     method: 'GET',
-    headers: getAuthHeaders()
+    headers: getAuthHeaders(token)
   })
 }
 
-export async function getRecommendations() {
+export async function getRecommendations(token) {
   return apiRequest('/ai/recommendations', {
     method: 'GET',
-    headers: getAuthHeaders()
+    headers: getAuthHeaders(token)
   })
 }
 /* =========================
@@ -222,7 +222,7 @@ export async function getCategoryAlerts(
 export async function getCategoryBudgetAlerts() {
   return apiRequest('/category-budget/alerts', {
     method: 'GET',
-    headers: getAuthHeaders()
+    headers: getAuthHeaders(token)
   })
 }
 
@@ -290,7 +290,7 @@ export async function setCategoryBudgets(
   )
 }
 // SMS Expense - Preview
-export async function previewSMSExpense(smsText) {
+export async function previewSMSExpense(smsText, token) {
   return apiRequest('/expense/sms/preview', {
     method: 'POST',
     headers: getAuthHeaders(),
@@ -299,7 +299,7 @@ export async function previewSMSExpense(smsText) {
 }
 
 // SMS Expense - Confirm & Save
-export async function addSMSExpense(smsText) {
+export async function addSMSExpense(smsText, token) {
   return apiRequest('/expense/sms/add', {
     method: 'POST',
     headers: getAuthHeaders(),

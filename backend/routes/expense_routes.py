@@ -56,7 +56,21 @@ def add_expense():
 
     category = (data.get('category') or '').strip().title()
     user = User.query.get(current_user_id)
+    user = User.query.get(user_id)
+    expenses = Expense.query.filter_by(user_id=user_id).all()
+    spent = sum(e.amount for e in expenses)
+    budget = float(user.available_budget or 0)
 
+    if budget > 0:
+        percentage = (spent / budget) * 100
+        if percentage >= 75 and not user.budget_alert_75_sent:
+            send_budget_alert_email(user.email, user.name, percentage, spent, budget)
+            user.budget_alert_75_sent = True
+            db.session.commit()
+        elif percentage >= 50 and not user.budget_alert_50_sent:
+            send_budget_alert_email(user.email, user.name, percentage, spent, budget)
+            user.budget_alert_50_sent = True
+            db.session.commit()
     payment_method = (
         (data.get('payment_method') or '')
         .strip()

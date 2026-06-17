@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { MdSms } from 'react-icons/md'
 import { previewSMSExpense, addSMSExpense } from '../api/budgetApi'
 
-export default function SMSExpense({ onExpenseAdded }) {
+export default function SMSExpense({ onExpenseAdded, token }) {
   const [smsText, setSmsText] = useState('')
   const [preview, setPreview] = useState(null)
   const [loading, setLoading] = useState(false)
@@ -15,14 +15,14 @@ export default function SMSExpense({ onExpenseAdded }) {
     setError('')
     setPreview(null)
     try {
-      const data = await previewSMSExpense(smsText)
+      const data = await previewSMSExpense(smsText, token)
       if (data.error) {
         setError(data.error)
       } else {
         setPreview(data)
       }
     } catch {
-      setError('SMS parse karne me error aaya')
+      setError('Could not parse the SMS. Please try again.')
     }
     setLoading(false)
   }
@@ -31,17 +31,17 @@ export default function SMSExpense({ onExpenseAdded }) {
     setLoading(true)
     setError('')
     try {
-      const data = await addSMSExpense(smsText)
+      const data = await addSMSExpense(smsText, token)
       if (data.error) {
         setError(data.error)
       } else {
-        setSuccess('Expense successfully add ho gaya!')
+        setSuccess('Expense added successfully!')
         setSmsText('')
         setPreview(null)
-        onExpenseAdded()  // dashboard refresh
+        onExpenseAdded()
       }
     } catch {
-      setError('Expense save karne me error aaya')
+      setError('Could not save expense. Please try again.')
     }
     setLoading(false)
   }
@@ -50,12 +50,12 @@ export default function SMSExpense({ onExpenseAdded }) {
     <div className="bg-white rounded-2xl p-5 shadow mb-4">
       <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
         <MdSms className="text-blue-500" />
-        Bank SMS se Expense Add Karo
+        Add Expense from Bank SMS
       </h3>
 
       <textarea
         className="w-full border rounded-xl p-3 text-sm resize-none h-24"
-        placeholder="Yahan bank ka SMS paste karo... e.g. INR 500.00 debited from your account..."
+        placeholder="Paste your bank SMS here... e.g. INR 500.00 debited from your account..."
         value={smsText}
         onChange={(e) => {
           setSmsText(e.target.value)
@@ -70,10 +70,9 @@ export default function SMSExpense({ onExpenseAdded }) {
         disabled={loading || !smsText.trim()}
         className="mt-2 bg-blue-500 text-white px-4 py-2 rounded-xl text-sm hover:bg-blue-600 disabled:opacity-50"
       >
-        {loading ? 'Parse ho raha hai...' : 'SMS Preview Karo'}
+        {loading ? 'Parsing...' : 'Preview SMS'}
       </button>
 
-      {/* Preview Result */}
       {preview && (
         <div className="mt-4 bg-blue-50 rounded-xl p-4 text-sm">
           <p className="font-semibold text-blue-700 mb-2">Detected Expense:</p>
@@ -92,7 +91,7 @@ export default function SMSExpense({ onExpenseAdded }) {
             disabled={loading}
             className="mt-3 bg-green-500 text-white px-4 py-2 rounded-xl text-sm hover:bg-green-600 disabled:opacity-50 w-full"
           >
-            {loading ? 'Save ho raha hai...' : '✅ Confirm & Save Karo'}
+            {loading ? 'Saving...' : '✅ Confirm & Save'}
           </button>
         </div>
       )}

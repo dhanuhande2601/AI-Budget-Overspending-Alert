@@ -14,6 +14,7 @@ from services.openai_service import (
 )
 from models.expense_model import Expense
 from models.user_model import User
+from models.category_budget_model import CategoryBudget
 from services.ai_budget_engine import (
     budget_usage_alerts,
     calculate_risk_score,

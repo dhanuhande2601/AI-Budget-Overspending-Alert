@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { FiPlus } from 'react-icons/fi'
+
 function ExpenseSection({
   categoryFilter,
   editingExpenseId,
@@ -16,113 +17,105 @@ function ExpenseSection({
   onStartEdit,
   searchTerm,
 }) {
-  const SpeechRecognition =
-    window.SpeechRecognition ||
-    window.webkitSpeechRecognition
+  const [showExpenses, setShowExpenses] = useState(false)
 
-  const recognition = SpeechRecognition
-    ? new SpeechRecognition()
-    : null
+  const SpeechRecognition =
+    window.SpeechRecognition || window.webkitSpeechRecognition
+
+  const recognition = SpeechRecognition ? new SpeechRecognition() : null
 
   if (recognition) {
     recognition.continuous = false
     recognition.lang = 'en-US'
   }
+
   const startListening = () => {
+    if (!recognition) {
+      alert('Speech Recognition is not supported in this browser. Please use Chrome.')
+      return
+    }
 
     recognition.onresult = (event) => {
+      const text = event.results[0][0].transcript
+      console.log('VOICE =', text)
 
-      const text =
-        event.results[0][0].transcript
+      const lower = text.toLowerCase()
+      const amountMatch = text.match(/\d+/)
+      const amount = amountMatch ? amountMatch[0] : ''
 
-      console.log("VOICE =", text)
+      const categoryKeywords = {
+        Food: ['swiggy', 'zomato', 'restaurant', 'cafe', 'food', 'pizza', 'hotel'],
+        Transport: ['uber', 'ola', 'rapido', 'metro', 'fuel', 'petrol', 'diesel', 'parking'],
+        Shopping: ['amazon', 'flipkart', 'myntra', 'shopping', 'store'],
+        Bills: ['electricity', 'bill', 'recharge', 'wifi', 'mobile'],
+        Entertainment: ['movie', 'netflix', 'spotify', 'cinema'],
+        Health: ['medical', 'pharmacy', 'hospital', 'clinic', 'medicine'],
+      }
 
-      const lower =
-        text.toLowerCase()
-
-      const amountMatch =
-        text.match(/\d+/)
-
-      const amount =
-        amountMatch
-          ? amountMatch[0]
-          : ""
-
-      let category = ""
-
+      let category = ''
       for (const [cat, keywords] of Object.entries(categoryKeywords)) {
-        if (keywords.some(word => lower.includes(word))) {
+        if (keywords.some((word) => lower.includes(word))) {
           category = cat
           break
         }
       }
 
-      let paymentMethod = ""
-
+      let paymentMethod = ''
       if (
-        lower.includes("upi") ||
-        lower.includes("gpay") ||
-        lower.includes("google pay") ||
-        lower.includes("phonepe") ||
-        lower.includes("paytm")
+        lower.includes('upi') ||
+        lower.includes('gpay') ||
+        lower.includes('google pay') ||
+        lower.includes('phonepe') ||
+        lower.includes('paytm')
       ) {
-        paymentMethod = "UPI"
-      }
-      else if (
-        lower.includes("card") ||
-        lower.includes("credit card") ||
-        lower.includes("debit card")
+        paymentMethod = 'UPI'
+      } else if (
+        lower.includes('card') ||
+        lower.includes('credit card') ||
+        lower.includes('debit card')
       ) {
-        paymentMethod = "Card"
-      }
-      else if (
-        lower.includes("net banking") ||
-        lower.includes("netbanking") ||
-        lower.includes("neft") ||
-        lower.includes("imps")
+        paymentMethod = 'Card'
+      } else if (
+        lower.includes('net banking') ||
+        lower.includes('netbanking') ||
+        lower.includes('neft') ||
+        lower.includes('imps')
       ) {
-        paymentMethod = "Net Banking"
+        paymentMethod = 'Net Banking'
       }
 
-      const title =
-        text.replace(/\d+/g, "")
-            .replace(/gpay|phonepe|paytm|upi|credit card|debit card/gi, "")
-            .trim()
+      const title = text
+        .replace(/\d+/g, '')
+        .replace(/gpay|phonepe|paytm|upi|credit card|debit card/gi, '')
+        .trim()
 
-      onExpenseFormChange("title", title)
-      onExpenseFormChange("amount", amount)
-      onExpenseFormChange("category", category)
-      onExpenseFormChange("payment_method", paymentMethod)
+      onExpenseFormChange('title', title)
+      onExpenseFormChange('amount', amount)
+      onExpenseFormChange('category', category)
+      onExpenseFormChange('payment_method', paymentMethod)
 
-      console.log("Amount =", amount)
-      console.log("Category =", category)
-      console.log("Payment =", paymentMethod)
-}
-     const startListening = () => {
-      if (!recognition) {
-        alert("Speech Recognition not supported in this browser")
-        return
-      }
-
-      recognition.onresult = (event) => {
-        // ... baaki code same rehta hai ...
-      }
-
-      recognition.start()
+      console.log('Amount =', amount)
+      console.log('Category =', category)
+      console.log('Payment =', paymentMethod)
     }
+
+    recognition.onerror = (event) => {
+      console.error('Speech recognition error:', event.error)
+      alert('Voice recognition error: ' + event.error + '. Please try again.')
+    }
+
+    recognition.start()
   }
 
-  const categories = Array.from(new Set(expenses.map((expense) => expense.category).filter(Boolean)))
-  const [showExpenses, setShowExpenses] = useState(false)
+  const categories = Array.from(
+    new Set(expenses.map((expense) => expense.category).filter(Boolean))
+  )
+
   return (
     <>
       <form className="expense-form" onSubmit={onSubmit}>
         <h2>{editingExpenseId ? 'Update expense' : 'Add expense'}</h2>
-        <button
-          type="button"
-          className="voice-btn"
-          onClick={startListening}
-        >
+        <button type="button" className="voice-btn" onClick={startListening}>
           🎤 Voice Expense
         </button>
         <input
@@ -179,37 +172,23 @@ function ExpenseSection({
       </div>
 
       <div className="panel">
-
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center"
-          }}
-        >
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <h2>Recent Expenses</h2>
-
-          <button
-            type="button"
-            onClick={() => setShowExpenses(!showExpenses)}
-          >
-            {showExpenses ? "Hide Expenses" : "Show Expenses"}
+          <button type="button" onClick={() => setShowExpenses(!showExpenses)}>
+            {showExpenses ? 'Hide Expenses' : 'Show Expenses'}
           </button>
         </div>
 
         {showExpenses && (
           <div className="expense-list">
-
             {filteredExpenses.map((expense) => (
               <div className="expense-row" key={expense.id}>
                 <div>
                   <strong>{expense.title}</strong>
                   <span>{expense.category}</span>
                 </div>
-
                 <div className="expense-actions">
                   <b>Rs. {Number(expense.amount).toFixed(2)}</b>
-
                   <button
                     className="edit-button"
                     type="button"
@@ -217,7 +196,6 @@ function ExpenseSection({
                   >
                     Edit
                   </button>
-
                   <button
                     className="delete-button"
                     type="button"
@@ -228,16 +206,9 @@ function ExpenseSection({
                 </div>
               </div>
             ))}
-
-            {expenses.length === 0 && (
-              <p className="muted">
-                No expenses yet.
-              </p>
-            )}
-
+            {expenses.length === 0 && <p className="muted">No expenses yet.</p>}
           </div>
         )}
-
       </div>
     </>
   )

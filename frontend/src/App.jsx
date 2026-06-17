@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import AIRecommendations from './components/AIRecommendations'
 import {
   apiRequest,
   downloadBudgetReport,
@@ -12,7 +11,6 @@ import {
   getCategoryAlerts,
   getMonthlyInsights,
   getLatestExpenses,
-  updateProfile,
   setCategoryBudgets,
   getRecommendations,
   getCategoryPredictions,
@@ -30,6 +28,7 @@ import ProfileModal from './components/ProfileModal'
 import SMSExpense from './components/SMSExpense'
 import CategoryPredictionsChart from './components/CategoryPredictionsChart'
 import './App.css'
+
 const emptyAuth = {
   name: '',
   email: '',
@@ -59,28 +58,27 @@ function App() {
 
   const [mode, setMode] = useState('login')
   const [authForm, setAuthForm] = useState(emptyAuth)
-
   const [expenseForm, setExpenseForm] = useState(emptyExpense)
   const [editingExpenseId, setEditingExpenseId] = useState(null)
-  const [categoryPredictions, setCategoryPredictions] = useState(null)
   const [user, setUser] = useState(null)
   const [expenses, setExpenses] = useState([])
   const [analytics, setAnalytics] = useState(emptyAnalytics)
   const [alerts, setAlerts] = useState([])
-
   const [message, setMessage] = useState('')
   const [loading, setLoading] = useState(false)
-
   const [searchTerm, setSearchTerm] = useState('')
   const [categoryFilter, setCategoryFilter] = useState('')
-
   const [showCategoryBudget, setShowCategoryBudget] = useState(false)
   const [showProfile, setShowProfile] = useState(false)
-  const [showExpenses, setShowExpenses] = useState(false)
   const [newBudget, setNewBudget] = useState('')
   const [newIncome, setNewIncome] = useState('')
   const [newSavings, setNewSavings] = useState('')
   const [recommendations, setRecommendations] = useState(null)
+  const [categoryPredictions, setCategoryPredictions] = useState(null)
+  const [monthlyInsights, setMonthlyInsights] = useState(null)
+  const [categoryBudgets, setCategoryBudgetsState] = useState([])
+  const [categoryAlerts, setCategoryAlerts] = useState([])
+  const [latestExpenses, setLatestExpenses] = useState([])
   const [categoryBudgetForm, setCategoryBudgetForm] = useState({
     food: '',
     travel: '',
@@ -88,194 +86,176 @@ function App() {
     health: '',
     adventure: '',
   })
-  const [categoryBudgets, setCategoryBudgets] = useState([])
 
-  const [categoryAlerts, setCategoryAlerts] = useState([])
+  const authHeaders = useMemo(
+    () => getAuthHeaders(token),
+    [token]
+  )
 
-  const [latestExpenses, setLatestExpenses] = useState([])
-  console.log("CATEGORY ALERT STATE =", categoryAlerts)
-  console.log("LATEST EXPENSE STATE =", latestExpenses)
-  console.log("alerts =", alerts)
-  console.log("categoryAlerts =", categoryAlerts)
-  const [monthlyInsights, setMonthlyInsights] = useState(null)
   const filteredExpenses = useMemo(
     () =>
       expenses.filter((expense) => {
         const matchesSearch = (expense.title || '')
           .toLowerCase()
           .includes(searchTerm.toLowerCase())
-
         const matchesCategory =
           !categoryFilter ||
           expense.category === categoryFilter
-        const allAlerts = [
-          ...(alerts || []),
-          ...(categoryAlerts?.alerts || [])
-        ]
         return matchesSearch && matchesCategory
       }),
     [expenses, searchTerm, categoryFilter]
   )
-  const trendData = useMemo(() => {
-  const monthlyData = {}
 
+  const trendData = useMemo(() => {
+    const monthlyData = {}
     expenses.forEach((expense) => {
       const month = new Date(
         expense.created_at
-      ).toLocaleString('default', {
-        month: 'short',
-      })
-
-      monthlyData[month] =
-        (monthlyData[month] || 0) +
-        Number(expense.amount || 0)
+      ).toLocaleString('default', { month: 'short' })
+      monthlyData[month] = (monthlyData[month] || 0) + Number(expense.amount || 0)
     })
-
-    return Object.keys(monthlyData).map(
-      (month) => ({
-        month,
-        amount: monthlyData[month],
-      })
-    )
+    return Object.keys(monthlyData).map((month) => ({
+      month,
+      amount: monthlyData[month],
+    }))
   }, [expenses])
-  const authHeaders = useMemo(
-    () => getAuthHeaders(token),
-    [token]
-)
+
   const totalSpending = Number(analytics?.total_spending || 0)
-  
-  const monthlyBudget = Number(
-    user?.available_budget ||
-    user?.monthly_budget ||
-    0
-  )
+  const monthlyBudget = Number(user?.available_budget || user?.monthly_budget || 0)
   const pieData = analytics?.category_summary || []
-  
   const hasBudget = monthlyBudget > 0
-
-  const isBudgetExceeded =
-    hasBudget &&
-    totalSpending > monthlyBudget
-
-  const isBudgetWarning =
-    hasBudget &&
-    !isBudgetExceeded &&
-    totalSpending >= monthlyBudget * 0.8
-
-  const alertCount =
-    alerts.length +
-    categoryAlerts.length
+  const isBudgetExceeded = hasBudget && totalSpending > monthlyBudget
+  const isBudgetWarning = hasBudget && !isBudgetExceeded && totalSpending >= monthlyBudget * 0.8
+  const alertCount = alerts.length + categoryAlerts.length
 
   const updateDashboard = useCallback((dashboardData) => {
-    setUser(dashboardData.user || null)
-    setExpenses(dashboardData.expenses || [])
-    setAnalytics(dashboardData.analytics || emptyAnalytics)
-    setAlerts(dashboardData.alerts || [])
-    setCategoryBudgets(dashboardData.category_budgets || [])
+    setUser(dashboardData?.user || null)
+    setExpenses(dashboardData?.expenses || [])
+    setAnalytics(dashboardData?.analytics || emptyAnalytics)
+    setAlerts(dashboardData?.alerts || [])
+    setCategoryBudgetsState(dashboardData?.category_budgets || [])
   }, [])
+
   const refreshDashboard = useCallback(async () => {
+    if (!token) return
     try {
       const data = await fetchDashboardData(token)
       updateDashboard(data)
 
       const [recoData, predData, insightsData] = await Promise.all([
-        getRecommendations(token),
-        getCategoryPredictions(token),
-        getMonthlyInsights(token),
+        getRecommendations(token).catch(() => null),
+        getCategoryPredictions(token).catch(() => null),
+        getMonthlyInsights(token).catch(() => null),
       ])
       setRecommendations(recoData)
       setCategoryPredictions(predData)
       setMonthlyInsights(insightsData)
     } catch (error) {
-      console.log(error)
+      console.log('Dashboard refresh error:', error)
     }
   }, [token, updateDashboard])
 
-  const fetchDashboardData = async () => {
+  const loadCategoryAlerts = useCallback(async () => {
     try {
-      const [dashboard, alertsData, categoryData, recoData] = await Promise.all([
-        fetchDashboardData(),
-        getLatestExpenses(),
-        getCategoryBudgets(),
-        getRecommendations()   
-      ])
-
-      setDashboardData(dashboard)
-      setAlerts(alertsData)
-      setCategoryBudgets(categoryData)
-      setRecommendations(recoData)   
-    } catch (err) {
-      console.error('Dashboard load error:', err)
+      const data = await getCategoryAlerts(token)
+      setCategoryAlerts(
+        Array.isArray(data) ? data : data?.alerts || []
+      )
+    } catch (error) {
+      console.log(error)
     }
-  }
+  }, [token])
+
+  const loadCategoryBudgets = useCallback(async () => {
+    try {
+      const data = await getCategoryBudgets(token)
+      setCategoryBudgetsState(data || [])
+      const formData = {
+        food: '',
+        travel: '',
+        shopping: '',
+        health: '',
+        adventure: '',
+      }
+      if (Array.isArray(data)) {
+        data.forEach((item) => {
+          formData[item.category] = item.monthly_limit
+        })
+      }
+      setCategoryBudgetForm(formData)
+    } catch (error) {
+      console.log(error)
+    }
+  }, [token])
+
+  const loadLatestExpenses = useCallback(async () => {
+    try {
+      const data = await getLatestExpenses(token)
+      setLatestExpenses(
+        Array.isArray(data) ? data : data?.expenses || []
+      )
+    } catch (error) {
+      console.log(error)
+    }
+  }, [token])
+
+  useEffect(() => {
+    if (!token) return
+    let isCurrent = true
+
+    async function initializeData() {
+      try {
+        await refreshDashboard()
+        if (!isCurrent) return
+        await Promise.all([
+          loadCategoryBudgets(),
+          loadLatestExpenses(),
+          loadCategoryAlerts(),
+        ])
+      } catch (error) {
+        console.log(error)
+      }
+    }
+
+    initializeData()
+    return () => { isCurrent = false }
+  }, [token, refreshDashboard, loadCategoryBudgets, loadLatestExpenses, loadCategoryAlerts])
 
   function updateAuthForm(field, value) {
-    setAuthForm((currentForm) => ({
-      ...currentForm,
-      [field]: value,
-    }))
+    setAuthForm((currentForm) => ({ ...currentForm, [field]: value }))
   }
 
   function updateExpenseForm(field, value) {
-    setExpenseForm((currentForm) => ({
-      ...currentForm,
-      [field]: value,
-    }))
+    setExpenseForm((currentForm) => ({ ...currentForm, [field]: value }))
   }
-
 
   async function handleAuth(event) {
     event.preventDefault()
-
     setLoading(true)
     setMessage('')
-
     try {
-
-      const endpoint =
-        mode === 'login'
-          ? '/auth/login'
-          : '/auth/register'
-
+      const endpoint = mode === 'login' ? '/auth/login' : '/auth/register'
       const payload =
         mode === 'login'
-          ? {
-              email: authForm.email,
-              password: authForm.password
-            }
+          ? { email: authForm.email, password: authForm.password }
           : {
               name: authForm.name,
               email: authForm.email,
               password: authForm.password,
               phone: authForm.phone,
-              monthly_income:
-                Number(
-                  authForm.monthly_income || 0
-                ),
-              monthly_savings:
-                Number(
-                  authForm.monthly_savings || 0
-                )
+              monthly_income: Number(authForm.monthly_income || 0),
+              monthly_savings: Number(authForm.monthly_savings || 0),
             }
-      const data =
-        await apiRequest(
-          endpoint,
-          {
-            method: 'POST',
-            body: JSON.stringify(payload)
-          }
-        )
+      const data = await apiRequest(endpoint, {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      })
       if (mode === 'register') {
         setMode('login')
-        setMessage(
-          'Account created successfully'
-        )
+        setMessage('Account created successfully')
         return
       }
-      localStorage.setItem(
-        'budget_token',
-        data.token
-      )
+      localStorage.setItem('budget_token', data.token)
       setToken(data.token)
       setUser(data.user)
       setAuthForm(emptyAuth)
@@ -285,98 +265,28 @@ function App() {
       setLoading(false)
     }
   }
+
   async function saveCategoryBudgets() {
-
     try {
-
-      await apiRequest(
-
-        '/category-budget/set',
-
-        {
-
-          method:'POST',
-
-          headers:authHeaders,
-
-          body:JSON.stringify(
-
-            categoryBudgetForm
-
-          )
-
-        }
-
-      )
-
-      setMessage(
-        'Category budgets saved'
-      )
-
-      setShowCategoryBudget(
-        false
-      )
-
-    }
-
-    catch(error) {
-
-      setMessage(
-        error.message
-      )
-
-    }
-
-  }
-  const loadCategoryAlerts = useCallback(async () => {
-    try {
-      const data = await getCategoryAlerts(token)
-
-      console.log("CATEGORY ALERTS =", data)
-
-      setCategoryAlerts(
-        Array.isArray(data)
-          ? data
-          : data?.alerts || []
-      )
-
-    } catch (error) {
-      console.log(error)
-    }
-  }, [token])
-
-  const loadCategoryBudgets = useCallback(async () => {
-    try {
-      const data = await getCategoryBudgets(token)
-      setCategoryBudgets(data || [])
-
-      const formData = {
-        food: '',
-        travel: '',
-        shopping: '',
-        health: '',
-        adventure: '',
-      }
-
-      data.forEach((item) => {
-        formData[item.category] = item.monthly_limit
+      await apiRequest('/category-budget/set', {
+        method: 'POST',
+        headers: authHeaders,
+        body: JSON.stringify(categoryBudgetForm),
       })
-
-      setCategoryBudgetForm(formData)
+      setMessage('Category budgets saved')
+      setShowCategoryBudget(false)
     } catch (error) {
-      console.log(error)
+      setMessage(error.message)
     }
-  }, [token])
+  }
+
   const handleUpdateSavings = async (amount) => {
     try {
       const response = await apiRequest('/auth/update-budget', {
         method: 'PUT',
         headers: authHeaders,
-        body: JSON.stringify({
-          monthly_savings: Number(amount),
-        }),
+        body: JSON.stringify({ monthly_savings: Number(amount) }),
       })
-
       if (response?.success) {
         await refreshDashboard()
       }
@@ -384,31 +294,10 @@ function App() {
       console.error('Savings update failed:', error)
     }
   }
-  const loadLatestExpenses = useCallback(async () => {
-    try {
-      const data = await getLatestExpenses(token)
-
-      console.log(
-        "LATEST EXPENSE API =",
-        data
-      )
-
-      setLatestExpenses(
-        Array.isArray(data)
-          ? data
-          : data?.expenses || []
-      )
-
-    } catch (error) {
-      console.log(error)
-    }
-  }, [token])
 
   async function handleUpdateIncome() {
     try {
-      await updateIncomeSavings(token, {
-        monthly_income: Number(newIncome),
-      })
+      await updateIncomeSavings(token, { monthly_income: Number(newIncome) })
       setMessage('Monthly income updated successfully')
       setNewIncome('')
       await refreshDashboard()
@@ -433,9 +322,7 @@ function App() {
   async function handleUpdateCategoryBudgets(budgets) {
     try {
       const budgetData = {}
-      budgets.forEach((b) => {
-        budgetData[b.category] = b.monthly_limit
-      })
+      budgets.forEach((b) => { budgetData[b.category] = b.monthly_limit })
       await apiRequest('/category-budget/set', {
         method: 'POST',
         headers: authHeaders,
@@ -452,53 +339,14 @@ function App() {
     setShowProfile(true)
   }
 
-  useEffect(() => {
-    if (!token) return
-
-    let isCurrent = true
-
-    async function initializeData() {
-      try {
-        await refreshDashboard()
-        if (!isCurrent) return
-
-        await Promise.all([
-          loadCategoryBudgets(),
-          loadLatestExpenses(),
-          loadCategoryAlerts(),
-        ])
-      } catch (error) {
-        console.log(error)
-      }
-    }
-
-    initializeData()
-
-    return () => {
-      isCurrent = false
-    }
-  }, [token, refreshDashboard, loadCategoryBudgets, loadLatestExpenses, loadCategoryAlerts])
-
   async function handleBudgetUpdate() {
     try {
-
-      await updateMonthlyBudget(
-        token,
-        Number(newBudget)
-      )
-
+      await updateMonthlyBudget(token, Number(newBudget))
       await refreshDashboard()
-
-      setMessage(
-        'Budget updated successfully'
-      )
-
+      setMessage('Budget updated successfully')
       setNewBudget('')
-
     } catch (error) {
-
       setMessage(error.message)
-
     }
   }
 
@@ -506,21 +354,17 @@ function App() {
     event.preventDefault()
     setLoading(true)
     setMessage('')
-
     try {
-      const payload = {
-        ...expenseForm,
-        amount: Number(expenseForm.amount),
-      }
-      const path = editingExpenseId ? `/expense/update/${editingExpenseId}` : '/expense/add'
+      const payload = { ...expenseForm, amount: Number(expenseForm.amount) }
+      const path = editingExpenseId
+        ? `/expense/update/${editingExpenseId}`
+        : '/expense/add'
       const method = editingExpenseId ? 'PUT' : 'POST'
-
       await apiRequest(path, {
         method,
         headers: authHeaders,
         body: JSON.stringify(payload),
       })
-
       setMessage(editingExpenseId ? 'Expense updated successfully' : 'Expense added successfully')
       setExpenseForm(emptyExpense)
       setEditingExpenseId(null)
@@ -536,24 +380,18 @@ function App() {
 
   async function handleDeleteExpense(expenseId) {
     try {
-
       await apiRequest(`/expense/delete/${expenseId}`, {
         method: 'DELETE',
         headers: authHeaders,
       })
-
       await refreshDashboard()
       await loadLatestExpenses()
       await loadCategoryAlerts()
-
       setMessage('Expense deleted successfully')
-
     } catch (error) {
       setMessage(error.message)
     }
   }
-
-
 
   function startEditingExpense(expense) {
     setExpenseForm({
@@ -574,32 +412,22 @@ function App() {
   }
 
   async function handleDownloadExcel() {
-
     try {
-
       await downloadExcel(token)
-
     } catch (error) {
-
       setMessage(error.message)
-
     }
   }
 
   function logout() {
-
     localStorage.removeItem('budget_token')
-
     setToken('')
     setUser(null)
-
     setExpenses([])
     setAlerts([])
     setAnalytics(emptyAnalytics)
-
-    setCategoryBudgets([])
+    setCategoryBudgetsState([])
     setCategoryAlerts([])
-
   }
 
   if (!token) {
@@ -633,9 +461,7 @@ function App() {
         onProfileClick={handleLoadProfile}
         user={user}
       />
-      
-      
-      
+
       <Metrics
         alertCount={alertCount}
         analytics={analytics}
@@ -662,22 +488,14 @@ function App() {
           onSubmit={handleSaveExpense}
           searchTerm={searchTerm}
         />
-        <ExpenseSection 
-        />
-        <SMSExpense onExpenseAdded={fetchDashboardData} />
 
-        <MonthlyInsights
-          data={monthlyInsights}
-        />
-        {recommendations && (
-          <AIRecommendations
-            recommendations={recommendations}
-          />
-        )}
+        <SMSExpense onExpenseAdded={refreshDashboard} token={token} />
+
+        <MonthlyInsights data={monthlyInsights} />
+
         {categoryPredictions && (
           <CategoryPredictionsChart data={categoryPredictions} />
         )}
-        
 
         <LatestExpensesByCategory
           data={latestExpenses}
@@ -689,7 +507,7 @@ function App() {
             ...(alerts || []),
             ...(Array.isArray(categoryAlerts)
               ? categoryAlerts
-              : categoryAlerts?.alerts || [])
+              : categoryAlerts?.alerts || []),
           ]}
           analytics={analytics}
           isBudgetExceeded={isBudgetExceeded}
