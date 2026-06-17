@@ -111,9 +111,9 @@ export default function BudgetHistory({ token }) {
       </div>
 
       {/* Chart */}
-      <div className="chart-frame" style={{ height: 280 }}>
-        <ResponsiveContainer width="100%" height="100%">
-          {chartType === 'bar' ? (
+      <div style={{ width: '100%' }}>
+        {chartType === 'bar' ? (
+          <ResponsiveContainer width="100%" aspect={2.5}>
             <BarChart data={chartData} margin={{ top: 10, right: 20, left: 0, bottom: 10 }}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="month_label" tick={{ fontSize: 11 }} />
@@ -124,7 +124,9 @@ export default function BudgetHistory({ token }) {
               <Bar dataKey="spent" fill="#ef4444" name="Spent" radius={[4, 4, 0, 0]} />
               <Bar dataKey="saved" fill="#22c55e" name="Saved" radius={[4, 4, 0, 0]} />
             </BarChart>
-          ) : (
+          </ResponsiveContainer>
+        ) : (
+          <ResponsiveContainer width="100%" aspect={2.5}>
             <LineChart data={chartData} margin={{ top: 10, right: 20, left: 0, bottom: 10 }}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="month_label" tick={{ fontSize: 11 }} />
@@ -135,8 +137,8 @@ export default function BudgetHistory({ token }) {
               <Line type="monotone" dataKey="spent" stroke="#ef4444" strokeWidth={2} name="Spent" />
               <Line type="monotone" dataKey="saved" stroke="#22c55e" strokeWidth={2} name="Saved" />
             </LineChart>
-          )}
-        </ResponsiveContainer>
+          </ResponsiveContainer>
+        )}
       </div>
 
       {/* Table */}
