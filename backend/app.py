@@ -1,6 +1,6 @@
 import os
 from datetime import timedelta
-
+ 
 from flask import Flask
 from flask_cors import CORS
 from flask_jwt_extended import JWTManager
@@ -32,35 +32,39 @@ from routes.category_budget_routes import (
 from routes.category_alert_routes import (
     category_alert
 )
+from routes.budget_history_routes import budget_history
+from models.budget_history_model import BudgetHistory
+from routes.recurring_expense_routes import recurring_expense
+from models.recurring_expense_model import RecurringExpense
 # Services
 from extensions import mail
-
+ 
 # Scheduler
 from flask_migrate import Migrate
-
+ 
 app = Flask(__name__)
-
-
+ 
+ 
 # =========================================
 # APP CONFIG
 # =========================================
-
+ 
 app.config['SECRET_KEY'] = Config.SECRET_KEY
-
+ 
 app.config['JWT_SECRET_KEY'] = Config.SECRET_KEY
-
+ 
 app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(days=7)
-
+ 
 app.config['SQLALCHEMY_DATABASE_URI'] = (
     Config.SQLALCHEMY_DATABASE_URI
 )
-
+ 
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config.from_object(Config) 
 # =========================================
 # EMAIL CONFIG
 # =========================================
-
+ 
 app.config['MAIL_SERVER'] = Config.MAIL_SERVER
 app.config['MAIL_PORT'] = Config.MAIL_PORT
 app.config['MAIL_USE_TLS'] = Config.MAIL_USE_TLS
@@ -70,13 +74,13 @@ app.config['MAIL_DEFAULT_SENDER'] = Config.MAIL_DEFAULT_SENDER
 # =========================================
 # EXTENSIONS
 # =========================================
-
+ 
 db.init_app(app)
-
+ 
 mail.init_app(app)
 migrate = Migrate(app, db)
 jwt = JWTManager(app)
-
+ 
 CORS(
     app,
     resources={
@@ -101,66 +105,76 @@ CORS(
     },
     supports_credentials=True
 )
-
+ 
 # =========================================
 # BLUEPRINTS
 # =========================================
-
+ 
 app.register_blueprint(
     auth,
     url_prefix='/api/auth'
 )
-
+ 
 app.register_blueprint(
     expense,
     url_prefix='/api/expense'
 )
-
+ 
 app.register_blueprint(
     ai,
     url_prefix='/api/ai'
 )
-
+ 
 app.register_blueprint(
     budget,
     url_prefix='/api/budget'
 )
-
+ 
 app.register_blueprint(
     report,
     url_prefix='/api/report'
 )
-
+ 
 app.register_blueprint(
     category_budget,
     url_prefix='/api/category-budget'
 )
-
+ 
 app.register_blueprint(
     category_alert,
     url_prefix='/api/category-alert'
+)
+ 
+app.register_blueprint(
+    budget_history,
+    url_prefix='/api/budget-history'
+)
+ 
+app.register_blueprint(
+    recurring_expense,
+    url_prefix='/api/recurring-expense'
 )
 # app.register_blueprint(
 #     user_bp,
 #     url_prefix="/api/user"
 # )
-
+ 
 # =========================================
 # HOME ROUTE
 # =========================================
-
+ 
 @app.route('/')
 def home():
-
+ 
     return {
         'message':
         'AI Budget Overspending Alert Backend Running'
     }
-
+ 
 # =========================================
 # DATABASE INIT
 # =========================================
-
+ 
 def init_database():
     with app.app_context():
         print("Festival columns:")
@@ -168,21 +182,21 @@ def init_database():
         db.create_all()
         ensure_user_alert_columns()
         ensure_category_budget_columns()
-
+ 
 def ensure_category_budget_columns():
-
+ 
     columns = {
         row[1]
         for row in db.session.execute(
             text("PRAGMA table_info(category_budgets)")
         )
     }
-
+ 
     required_columns = {
         "created_at": "DATETIME",
         "monthly_limit": "FLOAT DEFAULT 0",
     }
-
+ 
     for column, datatype in required_columns.items():
         if column not in columns:
             db.session.execute(
@@ -190,55 +204,55 @@ def ensure_category_budget_columns():
                     f"ALTER TABLE category_budgets ADD COLUMN {column} {datatype}"
                 )
             )
-
+ 
     db.session.commit()
-
+ 
 def ensure_user_alert_columns():
-
+ 
     existing_columns = {
         row[1]
         for row in db.session.execute(
             text("PRAGMA table_info(users)")
         )
     }
-
+ 
     required_columns = {
         "monthly_income":
             "FLOAT DEFAULT 0",
-
+ 
         "monthly_savings":
             "FLOAT DEFAULT 0",
-
+ 
         "available_budget":
             "FLOAT DEFAULT 0",
-
+ 
         "budget_alert_50_sent":
             "BOOLEAN DEFAULT 0",
-
+ 
         "budget_alert_75_sent":
             "BOOLEAN DEFAULT 0",
-
+ 
         "budget_alert_90_sent":
             "BOOLEAN DEFAULT 0",
-
+ 
         "budget_alert_100_sent":
             "BOOLEAN DEFAULT 0",
     }
-
+ 
     for column, datatype in required_columns.items():
-
+ 
         if column not in existing_columns:
-
+ 
             db.session.execute(
                 text(
                     f"ALTER TABLE users "
                     f"ADD COLUMN {column} {datatype}"
                 )
             )
-
+ 
     db.session.commit()
-
-
+ 
+ 
 # =========================================
 # RUN APP
 # =========================================
@@ -248,11 +262,12 @@ with app.app_context():
     #sync_festivals()
     print("Festival Sync Done")
 if __name__ == '__main__':
-
+ 
     init_database()
-
+ 
     app.run(
         debug=True,
         host='0.0.0.0',
         port=5000
     )
+ 

@@ -5,39 +5,39 @@ export function getAuthHeaders(token) {
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
   }
 }
-
+ 
 export async function apiRequest(path, options = {}) {
   const headers = {
     ...(options.headers || {}),
   }
-
+ 
   if (options.body && !headers['Content-Type']) {
     headers['Content-Type'] = 'application/json'
   }
-
+ 
   const response = await fetch(`${API_BASE}${path}`, {
     ...options,
     headers,
   })
-
+ 
   const data = await response.json().catch(() => ({}))
-
+ 
   if (!response.ok) {
     throw new Error(data.message || 'Request failed')
   }
-
+ 
   return data
 }
-
+ 
 /* =========================
    DASHBOARD
 ========================= */
-
+ 
 export async function fetchDashboardData(token) {
   if (!token) return null
-
+ 
   const headers = getAuthHeaders(token)
-
+ 
   const [
     profileData,
     expenseData,
@@ -49,7 +49,7 @@ export async function fetchDashboardData(token) {
     apiRequest('/ai/dashboard-analytics', { headers }),
     apiRequest('/ai/overspending-alerts', { headers }),
   ])
-
+ 
   return {
     user: profileData,
     expenses: expenseData.expenses || [],
@@ -57,11 +57,11 @@ export async function fetchDashboardData(token) {
     alerts: alertData.alerts || [],
   }
 }
-
+ 
 /* =========================
    DOWNLOADS
 ========================= */
-
+ 
 async function downloadFile(
   endpoint,
   filename,
@@ -75,33 +75,33 @@ async function downloadFile(
       },
     }
   )
-
+ 
   if (!response.ok) {
     throw new Error(
       `Failed to download ${filename}`
     )
   }
-
+ 
   const blob = await response.blob()
-
+ 
   const url =
     window.URL.createObjectURL(blob)
-
+ 
   const a =
     document.createElement('a')
-
+ 
   a.href = url
   a.download = filename
-
+ 
   document.body.appendChild(a)
-
+ 
   a.click()
-
+ 
   a.remove()
-
+ 
   window.URL.revokeObjectURL(url)
 }
-
+ 
 export async function downloadBudgetReport(
   token
 ) {
@@ -111,7 +111,7 @@ export async function downloadBudgetReport(
     token
   )
 }
-
+ 
 export async function downloadExcel(
   token
 ) {
@@ -121,11 +121,11 @@ export async function downloadExcel(
     token
   )
 }
-
+ 
 /* =========================
    AI / ANALYTICS
 ========================= */
-
+ 
 export async function getMonthlyInsights(
   token
 ) {
@@ -137,14 +137,14 @@ export async function getMonthlyInsights(
     }
   )
 }
-
+ 
 export async function getCategoryPredictions(token) {
   return apiRequest('/ai/category-predictions', {
     method: 'GET',
     headers: getAuthHeaders(token)
   })
 }
-
+ 
 export async function getRecommendations(token) {
   return apiRequest('/ai/recommendations', {
     method: 'GET',
@@ -154,7 +154,7 @@ export async function getRecommendations(token) {
 /* =========================
    EXPENSES
 ========================= */
-
+ 
 export async function getLatestExpenses(
   token
 ) {
@@ -166,7 +166,7 @@ export async function getLatestExpenses(
     }
   )
 }
-
+ 
 export async function getLatestByCategory(
   token
 ) {
@@ -178,7 +178,7 @@ export async function getLatestByCategory(
     }
   )
 }
-
+ 
 export async function getCategoryHistory(
   token
 ) {
@@ -190,11 +190,11 @@ export async function getCategoryHistory(
     }
   )
 }
-
+ 
 /* =========================
    CATEGORY BUDGETS
 ========================= */
-
+ 
 export async function getCategoryBudgets(
   token
 ) {
@@ -206,7 +206,7 @@ export async function getCategoryBudgets(
     }
   )
 }
-
+ 
 export async function getCategoryAlerts(
   token
 ) {
@@ -218,18 +218,18 @@ export async function getCategoryAlerts(
     }
   )
 }
-
+ 
 export async function getCategoryBudgetAlerts() {
   return apiRequest('/category-budget/alerts', {
     method: 'GET',
     headers: getAuthHeaders(token)
   })
 }
-
+ 
 /* =========================
    USER
 ========================= */
-
+ 
 export async function updateMonthlyBudget(
   token,
   monthlyBudget
@@ -247,7 +247,7 @@ export async function updateMonthlyBudget(
     }
   )
 }
-
+ 
 export async function updateIncomeSavings(
   token,
   payload
@@ -261,7 +261,7 @@ export async function updateIncomeSavings(
     }
   )
 }
-
+ 
 export async function updateProfile(
   token,
   profileData
@@ -275,7 +275,7 @@ export async function updateProfile(
     }
   )
 }
-
+ 
 export async function setCategoryBudgets(
   token,
   budgetData
@@ -293,16 +293,81 @@ export async function setCategoryBudgets(
 export async function previewSMSExpense(smsText, token) {
   return apiRequest('/expense/sms/preview', {
     method: 'POST',
-    headers: getAuthHeaders(),
+    headers: getAuthHeaders(token),
     body: JSON.stringify({ sms_text: smsText })
   })
 }
-
+ 
 // SMS Expense - Confirm & Save
 export async function addSMSExpense(smsText, token) {
   return apiRequest('/expense/sms/add', {
     method: 'POST',
-    headers: getAuthHeaders(),
+    headers: getAuthHeaders(token),
     body: JSON.stringify({ sms_text: smsText })
+  })
+}
+ 
+// Budget History - get all month-wise records
+export async function getBudgetHistory(token) {
+  return apiRequest('/budget-history/all', {
+    method: 'GET',
+    headers: getAuthHeaders(token),
+  })
+}
+ 
+// Budget History - get summary stats for charts
+export async function getBudgetHistorySummary(token) {
+  return apiRequest('/budget-history/summary', {
+    method: 'GET',
+    headers: getAuthHeaders(token),
+  })
+}
+ 
+// Budget History - manually save current month snapshot
+export async function saveBudgetSnapshot(token) {
+  return apiRequest('/budget-history/snapshot', {
+    method: 'POST',
+    headers: getAuthHeaders(token),
+  })
+}
+ 
+// Recurring Expense - get all
+export async function getRecurringExpenses(token) {
+  return apiRequest('/recurring-expense/all', {
+    method: 'GET',
+    headers: getAuthHeaders(token),
+  })
+}
+ 
+// Recurring Expense - add new
+export async function addRecurringExpense(token, payload) {
+  return apiRequest('/recurring-expense/add', {
+    method: 'POST',
+    headers: getAuthHeaders(token),
+    body: JSON.stringify(payload),
+  })
+}
+ 
+// Recurring Expense - toggle active/paused
+export async function toggleRecurringExpense(token, id) {
+  return apiRequest(`/recurring-expense/toggle/${id}`, {
+    method: 'PUT',
+    headers: getAuthHeaders(token),
+  })
+}
+ 
+// Recurring Expense - delete
+export async function deleteRecurringExpense(token, id) {
+  return apiRequest(`/recurring-expense/delete/${id}`, {
+    method: 'DELETE',
+    headers: getAuthHeaders(token),
+  })
+}
+ 
+// Currency - get live exchange rates (base INR)
+export async function getCurrencyRates(token) {
+  return apiRequest('/auth/currency-rates', {
+    method: 'GET',
+    headers: getAuthHeaders(token),
   })
 }

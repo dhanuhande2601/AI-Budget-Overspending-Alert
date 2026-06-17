@@ -8,6 +8,7 @@ import {
   getCategoryBudgets,
   updateMonthlyBudget,
   updateIncomeSavings,
+  updateProfile,
   getCategoryAlerts,
   getMonthlyInsights,
   getLatestExpenses,
@@ -27,6 +28,14 @@ import MonthlyInsights from './components/MonthlyInsights'
 import ProfileModal from './components/ProfileModal'
 import SMSExpense from './components/SMSExpense'
 import CategoryPredictionsChart from './components/CategoryPredictionsChart'
+import BudgetHistory from './components/BudgetHistory'
+import RecurringExpenses from './components/RecurringExpenses'
+import { getCurrencyRates } from './api/budgetApi'
+import { displayAmount } from './utils/currencyHelper'
+import {
+  requestNotificationPermission,
+  showBudgetNotification,
+} from './utils/notificationHelper'
 import './App.css'
 
 const emptyAuth = {
@@ -67,11 +76,27 @@ function App() {
 
   const toggleDarkMode = () => setDarkMode(prev => !prev)
 
+  const [currencyRates, setCurrencyRates] = useState(null)
+
+  useEffect(() => {
+    if (!token) return
+    getCurrencyRates(token)
+      .then((data) => setCurrencyRates(data?.rates || null))
+      .catch((error) => console.log('Currency rates fetch error:', error))
+  }, [token])
+
   const [mode, setMode] = useState('login')
   const [authForm, setAuthForm] = useState(emptyAuth)
   const [expenseForm, setExpenseForm] = useState(emptyExpense)
   const [editingExpenseId, setEditingExpenseId] = useState(null)
   const [user, setUser] = useState(null)
+
+  // Use this everywhere instead of hardcoding ₹ — automatically
+  // converts from INR (stored value) into the user's chosen currency.
+  const formatAmount = useCallback(
+    (amountInINR) => displayAmount(amountInINR, user?.currency || 'INR', currencyRates),
+    [user?.currency, currencyRates]
+  )
   const [expenses, setExpenses] = useState([])
   const [analytics, setAnalytics] = useState(emptyAnalytics)
   const [alerts, setAlerts] = useState([])
@@ -120,15 +145,46 @@ function App() {
   const trendData = useMemo(() => {
     const monthlyData = {}
     expenses.forEach((expense) => {
-      const month = new Date(
-        expense.created_at
-      ).toLocaleString('default', { month: 'short' })
-      monthlyData[month] = (monthlyData[month] || 0) + Number(expense.amount || 0)
+      const date = new Date(expense.created_at)
+      const key = `${date.getFullYear()}-${date.getMonth()}`
+      const label = date.toLocaleString('default', { month: 'short', year: '2-digit' })
+      if (!monthlyData[key]) monthlyData[key] = { label, amount: 0, sortKey: key }
+      monthlyData[key].amount += Number(expense.amount || 0)
     })
-    return Object.keys(monthlyData).map((month) => ({
-      month,
-      amount: monthlyData[month],
-    }))
+    return Object.values(monthlyData)
+      .sort((a, b) => a.sortKey.localeCompare(b.sortKey))
+      .map(({ label, amount }) => ({ month: label, amount }))
+  }, [expenses])
+
+  const weeklyTrendData = useMemo(() => {
+    // ISO-week-of-year, paired with year, so weeks never merge across years
+    function getWeekKey(date) {
+      const tempDate = new Date(date.getFullYear(), date.getMonth(), date.getDate())
+      const dayNum = (tempDate.getDay() + 6) % 7 // Monday = 0
+      tempDate.setDate(tempDate.getDate() - dayNum + 3)
+      const firstThursday = new Date(tempDate.getFullYear(), 0, 4)
+      const weekNumber =
+        1 +
+        Math.round(
+          ((tempDate - firstThursday) / 86400000 - 3 + ((firstThursday.getDay() + 6) % 7)) / 7
+        )
+      return { year: tempDate.getFullYear(), week: weekNumber }
+    }
+
+    const weeklyData = {}
+    expenses.forEach((expense) => {
+      const date = new Date(expense.created_at)
+      const { year, week } = getWeekKey(date)
+      const key = `${year}-W${week}`
+      const label = `W${week} '${String(year).slice(2)}`
+      if (!weeklyData[key]) weeklyData[key] = { label, amount: 0, sortKey: key }
+      weeklyData[key].amount += Number(expense.amount || 0)
+    })
+
+    return Object.values(weeklyData)
+      .sort((a, b) => a.sortKey.localeCompare(b.sortKey))
+      .slice(-12) // last 12 weeks, otherwise the chart gets unreadable
+      .map(({ label, amount }) => ({ week: label, amount }))
   }, [expenses])
 
   const totalSpending = Number(analytics?.total_spending || 0)
@@ -138,6 +194,32 @@ function App() {
   const isBudgetExceeded = hasBudget && totalSpending > monthlyBudget
   const isBudgetWarning = hasBudget && !isBudgetExceeded && totalSpending >= monthlyBudget * 0.8
   const alertCount = alerts.length + categoryAlerts.length
+
+  // Ask for notification permission once user logs in
+  useEffect(() => {
+    if (token) {
+      requestNotificationPermission()
+    }
+  }, [token])
+
+  // Trigger a browser notification when budget crosses 80% or is exceeded
+  useEffect(() => {
+    if (!hasBudget) return
+
+    if (isBudgetExceeded) {
+      showBudgetNotification(
+        '🚨 Budget Exceeded!',
+        `You've spent ₹${totalSpending.toLocaleString()} out of ₹${monthlyBudget.toLocaleString()}. Time to cut back.`,
+        'budget-exceeded'
+      )
+    } else if (isBudgetWarning) {
+      showBudgetNotification(
+        '⚠️ Budget Alert — 80% Used',
+        `You've used ₹${totalSpending.toLocaleString()} of your ₹${monthlyBudget.toLocaleString()} budget.`,
+        'budget-warning'
+      )
+    }
+  }, [isBudgetExceeded, isBudgetWarning, hasBudget, totalSpending, monthlyBudget])
 
   const updateDashboard = useCallback((dashboardData) => {
     setUser(dashboardData?.user || null)
@@ -319,6 +401,14 @@ function App() {
 
   async function handleUpdateProfile(profileData) {
     try {
+      await updateProfile(token, {
+        name: profileData.name,
+        email: profileData.email,
+        phone: profileData.phone,
+        profile_photo: profileData.profile_photo,
+        currency: profileData.currency,
+      })
+      // Income/savings go through a separate endpoint
       await updateIncomeSavings(token, {
         monthly_income: profileData.monthly_income,
         monthly_savings: profileData.monthly_savings,
@@ -467,6 +557,7 @@ function App() {
       <DashboardHeader
         analytics={analytics}
         darkMode={darkMode}
+        formatAmount={formatAmount}
         onDownloadReport={handleDownloadReport}
         onDownloadExcel={handleDownloadExcel}
         onLogout={logout}
@@ -478,6 +569,7 @@ function App() {
       <Metrics
         alertCount={alertCount}
         analytics={analytics}
+        formatAmount={formatAmount}
         isBudgetExceeded={isBudgetExceeded}
         isBudgetWarning={isBudgetWarning}
         monthlyBudget={monthlyBudget}
@@ -504,6 +596,8 @@ function App() {
 
         <SMSExpense onExpenseAdded={refreshDashboard} token={token} />
 
+        <RecurringExpenses token={token} />
+
         <MonthlyInsights data={monthlyInsights} />
 
         {categoryPredictions && (
@@ -526,13 +620,17 @@ function App() {
           isBudgetExceeded={isBudgetExceeded}
           isBudgetWarning={isBudgetWarning}
           trendData={trendData}
+          weeklyTrendData={weeklyTrendData}
         />
+
+        <BudgetHistory token={token} />
       </section>
 
       {showProfile && (
         <ProfileModal
           user={user}
           categoryBudgets={categoryBudgets}
+          formatAmount={formatAmount}
           onClose={() => setShowProfile(false)}
           onUpdateProfile={handleUpdateProfile}
           onUpdateCategoryBudgets={handleUpdateCategoryBudgets}

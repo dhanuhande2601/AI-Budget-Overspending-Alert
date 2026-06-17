@@ -1,9 +1,11 @@
 import { useState } from 'react'
 import { FiX, FiCamera } from 'react-icons/fi'
+import { CURRENCY_LABELS } from '../utils/currencyHelper'
 
 function ProfileModal({
   user = {},
   categoryBudgets = [],
+  formatAmount,
   onClose,
   onUpdateProfile,
   onUpdateCategoryBudgets,
@@ -15,6 +17,7 @@ function ProfileModal({
     phone: user?.phone || '',
     monthly_income: user?.monthly_income || '',
     monthly_savings: user?.monthly_savings || '',
+    currency: user?.currency || 'INR',
   })
   const [categoryForm, setCategoryForm] = useState(
     categoryBudgets.reduce((acc, cat) => ({
@@ -24,6 +27,8 @@ function ProfileModal({
   )
   const [profilePhoto, setProfilePhoto] = useState(null)
   const [photoPreview, setPhotoPreview] = useState(user?.profile_photo || null)
+
+  const money = formatAmount || ((amt) => `₹${Number(amt || 0).toLocaleString()}`)
 
   const handlePhotoChange = (e) => {
     const file = e.target.files?.[0]
@@ -158,6 +163,22 @@ function ProfileModal({
                   <p>{user?.phone || '-'}</p>
                 )}
               </div>
+
+              <div className="info-block">
+                <label>Preferred Currency</label>
+                {editMode ? (
+                  <select
+                    value={editForm.currency}
+                    onChange={(e) => handleEditChange('currency', e.target.value)}
+                  >
+                    {Object.entries(CURRENCY_LABELS).map(([code, label]) => (
+                      <option key={code} value={code}>{label}</option>
+                    ))}
+                  </select>
+                ) : (
+                  <p>{CURRENCY_LABELS[user?.currency || 'INR']}</p>
+                )}
+              </div>
             </div>
           </div>
 
@@ -174,7 +195,7 @@ function ProfileModal({
                     onChange={(e) => handleEditChange('monthly_income', e.target.value)}
                   />
                 ) : (
-                  <p>₹{income.toLocaleString()}</p>
+                  <p>{money(income)}</p>
                 )}
               </div>
 
@@ -187,13 +208,13 @@ function ProfileModal({
                     onChange={(e) => handleEditChange('monthly_savings', e.target.value)}
                   />
                 ) : (
-                  <p>₹{savings.toLocaleString()}</p>
+                  <p>{money(savings)}</p>
                 )}
               </div>
 
               <div className="info-block">
                 <label>Available Budget</label>
-                <p>₹{availableBudget.toLocaleString()}</p>
+                <p>{money(availableBudget)}</p>
               </div>
             </div>
           </div>
@@ -210,10 +231,10 @@ function ProfileModal({
                       type="number"
                       value={categoryForm[category] || ''}
                       onChange={(e) => handleCategoryChange(category, e.target.value)}
-                      placeholder="₹0"
+                      placeholder="0"
                     />
                   ) : (
-                    <p>₹{(categoryForm[category] || 0).toLocaleString()}</p>
+                    <p>{money(categoryForm[category] || 0)}</p>
                   )}
                 </div>
               ))}
@@ -240,6 +261,7 @@ function ProfileModal({
                       phone: user?.phone || '',
                       monthly_income: user?.monthly_income || '',
                       monthly_savings: user?.monthly_savings || '',
+                      currency: user?.currency || 'INR',
                     })
                   }}
                 >

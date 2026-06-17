@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { FiAlertTriangle } from 'react-icons/fi'
 
 import {
@@ -28,11 +29,15 @@ function AlertsTrendSection({
   isBudgetExceeded,
   isBudgetWarning,
   trendData = [],
+  weeklyTrendData = [],
 }) {
-  console.log("ALERTS =", alerts)
-  console.log("ANALYTICS =", analytics)
+  const [trendView, setTrendView] = useState('monthly')
+
   const budgetAlerts = analytics?.budget_alerts || []
   const pieData = analytics?.category_summary || []
+
+  const activeData = trendView === 'monthly' ? trendData : weeklyTrendData
+  const xAxisKey = trendView === 'monthly' ? 'month' : 'week'
 
   return (
     <div className="panel">
@@ -138,43 +143,68 @@ function AlertsTrendSection({
           </div>
         )}
 
-        {/* MONTHLY TREND */}
+        {/* SPENDING TREND — MONTHLY / WEEKLY TOGGLE */}
 
         <div className="section-block">
-          <h2>Monthly Spending Trend</h2>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <h2>
+              {trendView === 'monthly' ? 'Monthly' : 'Weekly'} Spending Trend
+            </h2>
+            <div style={{ display: 'flex', gap: 6 }}>
+              <button
+                type="button"
+                className={trendView === 'monthly' ? '' : 'secondary-button'}
+                style={{ minHeight: 32, padding: '6px 12px', fontSize: 12 }}
+                onClick={() => setTrendView('monthly')}
+              >
+                Monthly
+              </button>
+              <button
+                type="button"
+                className={trendView === 'weekly' ? '' : 'secondary-button'}
+                style={{ minHeight: 32, padding: '6px 12px', fontSize: 12 }}
+                onClick={() => setTrendView('weekly')}
+              >
+                Weekly
+              </button>
+            </div>
+          </div>
 
           <div className="chart-frame">
-            <ResponsiveContainer
-              width="100%"
-              height={220}
-            >
-              <LineChart data={trendData}>
-                <CartesianGrid strokeDasharray="3 3" />
+            {activeData.length === 0 ? (
+              <p className="muted" style={{ marginTop: 20 }}>
+                Not enough data yet for a {trendView} view.
+              </p>
+            ) : (
+              <ResponsiveContainer
+                width="100%"
+                height={220}
+              >
+                <LineChart data={activeData}>
+                  <CartesianGrid strokeDasharray="3 3" />
 
-                <XAxis dataKey="month" />
+                  <XAxis dataKey={xAxisKey} tick={{ fontSize: 11 }} />
 
-                <YAxis />
+                  <YAxis tick={{ fontSize: 11 }} />
 
-                <Tooltip />
+                  <Tooltip formatter={(val) => `₹${val.toLocaleString()}`} />
 
-                <Legend />
+                  <Legend />
 
-                <Line
-                  type="monotone"
-                  dataKey="amount"
-                  name="Spending"
-                  stroke="#2f6fed"
-                  strokeWidth={3}
-                  dot={{ r: 5 }}
-                  activeDot={{ r: 8 }}
-                />
-              </LineChart>
-            </ResponsiveContainer>
+                  <Line
+                    type="monotone"
+                    dataKey="amount"
+                    name="Spending"
+                    stroke="#2f6fed"
+                    strokeWidth={3}
+                    dot={{ r: 5 }}
+                    activeDot={{ r: 8 }}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            )}
           </div>
         </div>
-      </div>
-      <div className="section-block">
-        
       </div>
     </div>
   )
