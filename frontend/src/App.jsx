@@ -56,6 +56,17 @@ function App() {
     () => localStorage.getItem('budget_token') || ''
   )
 
+  const [darkMode, setDarkMode] = useState(
+    () => localStorage.getItem('dark_mode') === 'true'
+  )
+
+  useEffect(() => {
+    document.body.classList.toggle('dark', darkMode)
+    localStorage.setItem('dark_mode', darkMode)
+  }, [darkMode])
+
+  const toggleDarkMode = () => setDarkMode(prev => !prev)
+
   const [mode, setMode] = useState('login')
   const [authForm, setAuthForm] = useState(emptyAuth)
   const [expenseForm, setExpenseForm] = useState(emptyExpense)
@@ -455,10 +466,12 @@ function App() {
       )}
       <DashboardHeader
         analytics={analytics}
+        darkMode={darkMode}
         onDownloadReport={handleDownloadReport}
         onDownloadExcel={handleDownloadExcel}
         onLogout={logout}
         onProfileClick={handleLoadProfile}
+        onToggleDark={toggleDarkMode}
         user={user}
       />
 
