@@ -107,12 +107,19 @@ export default function RecurringExpenses({ token }) {
             value={form.amount}
             onChange={(e) => updateForm('amount', e.target.value)}
           />
-          <input
+          <select
             required
-            placeholder="Category (e.g. Loan, Subscription)"
             value={form.category}
             onChange={(e) => updateForm('category', e.target.value)}
-          />
+          >
+            <option value="" disabled>Select category</option>
+            <option value="Loan">Loan/EMI</option>
+            <option value="Food">Food</option>
+            <option value="Travel">Travel</option>
+            <option value="Shopping">Shopping</option>
+            <option value="Health">Health</option>
+            <option value="Adventure">Adventure</option>
+          </select>
           <input
             placeholder="Payment method"
             value={form.payment_method}

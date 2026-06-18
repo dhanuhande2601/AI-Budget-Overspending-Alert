@@ -29,6 +29,7 @@ import ProfileModal from './components/ProfileModal'
 import SMSExpense from './components/SMSExpense'
 import CategoryPredictionsChart from './components/CategoryPredictionsChart'
 import BudgetHistory from './components/BudgetHistory'
+import FinancialIntelligenceReport from './components/FinancialIntelligenceReport'
 import RecurringExpenses from './components/RecurringExpenses'
 import { getCurrencyRates } from './api/budgetApi'
 import { displayAmount } from './utils/currencyHelper'
@@ -635,6 +636,8 @@ function App() {
         />
 
         <BudgetHistory token={token} />
+
+        <FinancialIntelligenceReport token={token} />
       </section>
 
       {showProfile && (

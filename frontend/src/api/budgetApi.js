@@ -151,6 +151,13 @@ export async function getRecommendations(token) {
     headers: getAuthHeaders(token)
   })
 }
+
+export async function getFinancialReport(token) {
+  return apiRequest('/ai/financial-report', {
+    method: 'GET',
+    headers: getAuthHeaders(token)
+  })
+}
 /* =========================
    EXPENSES
 ========================= */

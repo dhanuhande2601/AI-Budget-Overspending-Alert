@@ -223,9 +223,9 @@ function ProfileModal({
           <div className="profile-section">
             <h3>Category-wise Budget</h3>
             <div className="category-budgets-grid">
-              {['food', 'travel', 'shopping', 'health', 'adventure'].map((category) => (
+              {['food', 'travel', 'shopping', 'health', 'adventure', 'loan'].map((category) => (
                 <div key={category} className="category-budget-item">
-                  <label>{category.charAt(0).toUpperCase() + category.slice(1)}</label>
+                  <label>{category === 'loan' ? 'Loan/EMI' : category.charAt(0).toUpperCase() + category.slice(1)}</label>
                   {editMode ? (
                     <input
                       type="number"

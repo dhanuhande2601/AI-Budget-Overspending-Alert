@@ -579,7 +579,7 @@ def update_expense(expense_id):
 
     category = (
         data.get('category') or ''
-    ).strip().lower()
+    ).strip().title()
 
     payment_method = (
         data.get('payment_method') or ''

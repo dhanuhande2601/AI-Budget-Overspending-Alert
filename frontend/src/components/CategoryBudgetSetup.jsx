@@ -11,21 +11,29 @@ function CategoryBudgetSetup({ form, setForm, onSave }) {
     'shopping',
     'health',
     'adventure',
+    'loan',
   ]
+
+  const labels = {
+    loan: 'Loan/EMI',
+  }
 
   return (
     <div className="card">
       <h2>Category Budgets</h2>
 
-      {fields.map((field) => (
-        <input
-          key={field}
-          type="number"
-          placeholder={`${field.charAt(0).toUpperCase()}${field.slice(1)} Budget`}
-          value={form[field] || ''}
-          onChange={(e) => updateField(field, e.target.value)}
-        />
-      ))}
+      {fields.map((field) => {
+        const label = labels[field] || (field.charAt(0).toUpperCase() + field.slice(1))
+        return (
+          <input
+            key={field}
+            type="number"
+            placeholder={`${label} Budget`}
+            value={form[field] || ''}
+            onChange={(e) => updateField(field, e.target.value)}
+          />
+        )
+      })}
 
       <button onClick={onSave}>
         Save Budgets

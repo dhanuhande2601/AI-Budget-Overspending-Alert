@@ -13,11 +13,11 @@ MERCHANT_PATTERNS = [
 
 CATEGORY_KEYWORDS = [
     ('Food', ['swiggy', 'zomato', 'restaurant', 'cafe', 'food', 'pizza', 'hotel']),
-    ('Transport', ['uber', 'ola', 'rapido', 'metro', 'fuel', 'petrol', 'diesel', 'parking']),
+    ('Travel', ['uber', 'ola', 'rapido', 'metro', 'fuel', 'petrol', 'diesel', 'parking', 'bus', 'train', 'flight']),
     ('Shopping', ['amazon', 'flipkart', 'myntra', 'shopping', 'store', 'mart', 'retail']),
-    ('Bills', ['electricity', 'bill', 'recharge', 'broadband', 'wifi', 'mobile', 'postpaid']),
-    ('Entertainment', ['movie', 'netflix', 'prime', 'spotify', 'bookmyshow', 'cinema']),
-    ('Health', ['medical', 'pharmacy', 'hospital', 'clinic', 'medicine']),
+    ('Health', ['medical', 'pharmacy', 'hospital', 'clinic', 'medicine', 'doctor']),
+    ('Adventure', ['movie', 'netflix', 'prime', 'spotify', 'bookmyshow', 'cinema', 'trip', 'trek']),
+    ('Loan', ['emi', 'loan', 'installment']),
 ]
 
 PAYMENT_KEYWORDS = [

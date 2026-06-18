@@ -16,13 +16,9 @@ export default function SMSExpense({ onExpenseAdded, token }) {
     setPreview(null)
     try {
       const data = await previewSMSExpense(smsText, token)
-      if (data.error) {
-        setError(data.error)
-      } else {
-        setPreview(data)
-      }
-    } catch {
-      setError('Could not parse the SMS. Please try again.')
+      setPreview(data)
+    } catch (err) {
+      setError(err.message || 'Could not parse the SMS. Please try again.')
     }
     setLoading(false)
   }
@@ -31,17 +27,13 @@ export default function SMSExpense({ onExpenseAdded, token }) {
     setLoading(true)
     setError('')
     try {
-      const data = await addSMSExpense(smsText, token)
-      if (data.error) {
-        setError(data.error)
-      } else {
-        setSuccess('Expense added successfully!')
-        setSmsText('')
-        setPreview(null)
-        onExpenseAdded()
-      }
-    } catch {
-      setError('Could not save expense. Please try again.')
+      await addSMSExpense(smsText, token)
+      setSuccess('Expense added successfully!')
+      setSmsText('')
+      setPreview(null)
+      onExpenseAdded()
+    } catch (err) {
+      setError(err.message || 'Could not save expense. Please try again.')
     }
     setLoading(false)
   }

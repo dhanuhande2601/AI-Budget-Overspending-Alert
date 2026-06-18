@@ -45,11 +45,11 @@ function ExpenseSection({
 
       const categoryKeywords = {
         Food: ['swiggy', 'zomato', 'restaurant', 'cafe', 'food', 'pizza', 'hotel'],
-        Transport: ['uber', 'ola', 'rapido', 'metro', 'fuel', 'petrol', 'diesel', 'parking'],
-        Shopping: ['amazon', 'flipkart', 'myntra', 'shopping', 'store'],
-        Bills: ['electricity', 'bill', 'recharge', 'wifi', 'mobile'],
-        Entertainment: ['movie', 'netflix', 'spotify', 'cinema'],
-        Health: ['medical', 'pharmacy', 'hospital', 'clinic', 'medicine'],
+        Travel: ['uber', 'ola', 'rapido', 'metro', 'fuel', 'petrol', 'diesel', 'parking', 'bus', 'train', 'flight'],
+        Shopping: ['amazon', 'flipkart', 'myntra', 'shopping', 'store', 'mart'],
+        Health: ['medical', 'pharmacy', 'hospital', 'clinic', 'medicine', 'doctor'],
+        Adventure: ['movie', 'netflix', 'spotify', 'cinema', 'trip', 'trek', 'park'],
+        Loan: ['emi', 'loan', 'installment'],
       }
 
       let category = ''
@@ -133,12 +133,19 @@ function ExpenseSection({
           value={expenseForm.amount}
           onChange={(event) => onExpenseFormChange('amount', event.target.value)}
         />
-        <input
+        <select
           required
-          placeholder="Category"
           value={expenseForm.category}
           onChange={(event) => onExpenseFormChange('category', event.target.value)}
-        />
+        >
+          <option value="" disabled>Select category</option>
+          <option value="Food">Food</option>
+          <option value="Travel">Travel</option>
+          <option value="Shopping">Shopping</option>
+          <option value="Health">Health</option>
+          <option value="Adventure">Adventure</option>
+          <option value="Loan">Loan/EMI</option>
+        </select>
         <input
           placeholder="Payment method"
           value={expenseForm.payment_method}

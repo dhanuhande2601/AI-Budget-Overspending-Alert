@@ -10,7 +10,8 @@ from services.festival_prediction_service import (
     get_upcoming_festival
 )
 from services.openai_service import (
-    generate_ai_recommendation
+    generate_ai_recommendation,
+    generate_investment_suggestion,
 )
 from models.expense_model import Expense
 from models.user_model import User
@@ -478,3 +479,72 @@ def ai_recommendations():
     return jsonify(
         recommendations
     )
+
+
+# =========================================
+# AI FINANCIAL INTELLIGENCE REPORT
+# =========================================
+@ai.route('/financial-report', methods=['GET'])
+@jwt_required()
+def financial_report():
+    user_id = int(get_jwt_identity())
+    user = User.query.get(user_id)
+
+    if not user:
+        return jsonify({"message": "User not found"}), 404
+
+    monthly_budget = float(user.available_budget or 0)
+    monthly_income = float(user.monthly_income or 0)
+    today = date.today()
+    days_in_month = calendar.monthrange(today.year, today.month)[1]
+
+    expenses = Expense.query.filter_by(user_id=user_id).all()
+
+    total_spending = 0
+    category_summary = {}
+    for expense in expenses:
+        total_spending += float(expense.amount)
+        category = (expense.category or "").strip().title()
+        category_summary[category] = category_summary.get(category, 0) + float(expense.amount)
+
+    predicted_spending = predict_month_end_spending(expenses)
+    projected_overspend = max(predicted_spending - monthly_budget, 0)
+
+    risk_data = calculate_risk_score(total_spending, monthly_budget, predicted_spending)
+
+    remaining_days = max(days_in_month - today.day, 1)
+    remaining_budget = max(monthly_budget - total_spending, 0)
+
+    # Daily reduction needed to land on-budget by month end, if overspend is projected
+    daily_reduction_needed = (
+        round(projected_overspend / remaining_days, 2)
+        if projected_overspend > 0 else 0
+    )
+
+    # Top 3 categories by spend, formatted cleanly (no raw floats, no
+    # categories that don't actually exist in the budget system)
+    sorted_categories = sorted(
+        category_summary.items(), key=lambda item: item[1], reverse=True
+    )
+    top_categories = [
+        {"category": cat, "amount": round(amount, 2)}
+        for cat, amount in sorted_categories[:3]
+    ]
+
+    investment = generate_investment_suggestion(
+        monthly_income=monthly_income,
+        monthly_budget=monthly_budget,
+        total_spending=total_spending,
+        remaining_budget=remaining_budget,
+        risk_level=risk_data["level"],
+    )
+
+    return jsonify({
+        "projected_month_end_spending": round(predicted_spending, 2),
+        "projected_overspend": round(projected_overspend, 2),
+        "risk_level": risk_data["level"],
+        "risk_score": risk_data["score"],
+        "daily_reduction_needed": daily_reduction_needed,
+        "top_categories": top_categories,
+        "investment_suggestion": investment,
+    }), 200

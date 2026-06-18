@@ -28,6 +28,10 @@ class RecurringExpense(db.Model):
     day_of_month = db.Column(db.Integer, nullable=False, default=1)
  
     is_active = db.Column(db.Boolean, default=True)
+
+    # Optional - if set, the recurring expense auto-stops after this date
+    # (e.g. EMI tenure ending, subscription contract ending)
+    end_date = db.Column(db.Date, nullable=True)
  
     # Track when this was last auto-added, to avoid duplicates
     last_added_on = db.Column(db.Date, nullable=True)
@@ -36,4 +40,3 @@ class RecurringExpense(db.Model):
         db.DateTime,
         default=lambda: datetime.now(india_tz)
     )
- 
