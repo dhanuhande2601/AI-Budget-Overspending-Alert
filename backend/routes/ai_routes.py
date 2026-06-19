@@ -180,14 +180,10 @@ def dashboard_analytics():
     recommendations = generate_recommendations(
     formatted_categories
     )
-    today = date.today()
-
-    days_in_month = 30
     remaining_days = max(
         days_in_month - today.day,
         1
     )
-
     remaining_budget = (
         monthly_budget - total_spending
     )

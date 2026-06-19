@@ -71,6 +71,8 @@ def save_all_users_monthly_snapshot(app):
                 # Reset monthly alert flags
                 user.budget_alert_50_sent = False
                 user.budget_alert_75_sent = False
+                user.budget_alert_90_sent = False
+                user.budget_alert_100_sent = False
  
             except Exception as e:
                 print(f"Snapshot error for user {user.id}: {e}")

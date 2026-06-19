@@ -56,19 +56,17 @@ def add_expense():
 
     category = (data.get('category') or '').strip().title()
     user = User.query.get(current_user_id)
-    user = User.query.get(user_id)
-    expenses = Expense.query.filter_by(user_id=user_id).all()
+    expenses = Expense.query.filter_by(user_id=current_user_id).all()
     spent = sum(e.amount for e in expenses)
     budget = float(user.available_budget or 0)
-
     if budget > 0:
         percentage = (spent / budget) * 100
         if percentage >= 75 and not user.budget_alert_75_sent:
-            send_budget_alert_email(user.email, user.name, percentage, spent, budget)
+            send_budget_alert(user.email, percentage, spent, budget)
             user.budget_alert_75_sent = True
             db.session.commit()
         elif percentage >= 50 and not user.budget_alert_50_sent:
-            send_budget_alert_email(user.email, user.name, percentage, spent, budget)
+            send_budget_alert(user.email, percentage, spent, budget)
             user.budget_alert_50_sent = True
             db.session.commit()
     payment_method = (
@@ -185,56 +183,52 @@ def add_expense():
             current_user.available_budget or 0
         )
 
-        if monthly_budget > 0:
-
-            percentage = (
-                total_spending /
-                monthly_budget
-            ) * 100
-            if current_user.phone:
+        if current_user.phone:
+            for alert in alerts:
                 send_sms(
                     current_user.phone,
                     f"⚠ Budget Alert: {alert['category']} reached {alert['percent']}% of limit"
                 )
 
+        if monthly_budget > 0:
+            percentage = (
+                total_spending /
+                monthly_budget
+            ) * 100
             try:
 
                 if percentage >= 75 and not user.budget_alert_75_sent:
-                    send_budget_alert_email(
-                        user.email, user.name, percentage, spent, budget
-                    )
+                    send_budget_alert(user.email, percentage, spent, budget)
                     user.budget_alert_75_sent = True
                     db.session.commit()
-
                 elif percentage >= 50 and not user.budget_alert_50_sent:
-                    send_budget_alert_email(
-                        user.email, user.name, percentage, spent, budget
-                    )
+                    send_budget_alert(user.email, percentage, spent, budget)
                     user.budget_alert_50_sent = True
                     db.session.commit()
 
                 elif (
                     percentage >= 90
                     and percentage < 100
+                    and not current_user.budget_alert_90_sent
                 ):
-
                     send_budget_alert(
                         current_user.email,
                         90,
                         total_spending,
                         monthly_budget
                     )
+                    current_user.budget_alert_90_sent = True
+                    db.session.commit()
 
-                elif percentage >= 100:
-
+                elif percentage >= 100 and not current_user.budget_alert_100_sent:
                     send_budget_alert(
-                        
                         current_user.email,
                         100,
                         total_spending,
                         monthly_budget
-                        
                     )
+                    current_user.budget_alert_100_sent = True
+                    db.session.commit()
                 
 
             except Exception as error:
