@@ -1,6 +1,6 @@
 import os
 from datetime import timedelta
- 
+import re
 from flask import Flask
 from flask_cors import CORS
 from flask_jwt_extended import JWTManager
@@ -88,7 +88,8 @@ CORS(
             "origins": [
                 "http://localhost:5173",
                 "http://127.0.0.1:5173",
-                "https://subtle-crumble-543032.netlify.app"
+                "https://subtle-crumble-543032.netlify.app",
+                re.compile(r"^https://[a-z0-9]+--subtle-crumble-543032\.netlify\.app$")
             ],
             "methods": [
                 "GET",
