@@ -263,9 +263,9 @@ with app.app_context():
     print("DB Engine URL =", db.engine.url)
     #sync_festivals()
     print("Festival Sync Done")
-if __name__ == '__main__':
+init_database()
 
-    init_database()
+if __name__ == '__main__':
 
     from scheduler.job import start_scheduler
     start_scheduler(app)
