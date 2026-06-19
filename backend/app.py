@@ -186,16 +186,17 @@ def init_database():
         ensure_category_budget_columns()
  
 def ensure_category_budget_columns():
- 
+
+    from sqlalchemy import inspect
+
+    inspector = inspect(db.engine)
     columns = {
-        row[1]
-        for row in db.session.execute(
-            text("PRAGMA table_info(category_budgets)")
-        )
+        col["name"]
+        for col in inspector.get_columns("category_budgets")
     }
  
     required_columns = {
-        "created_at": "DATETIME",
+        "created_at": "TIMESTAMP",
         "monthly_limit": "FLOAT DEFAULT 0",
     }
  
@@ -210,12 +211,13 @@ def ensure_category_budget_columns():
     db.session.commit()
  
 def ensure_user_alert_columns():
- 
+
+    from sqlalchemy import inspect
+
+    inspector = inspect(db.engine)
     existing_columns = {
-        row[1]
-        for row in db.session.execute(
-            text("PRAGMA table_info(users)")
-        )
+        col["name"]
+        for col in inspector.get_columns("users")
     }
  
     required_columns = {
