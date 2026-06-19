@@ -12,16 +12,14 @@ from datetime import datetime
 
 def detect_overspending(user_id):
     now = datetime.now()
-    budgets = CategoryBudget.query.filter_by(
-        user_id=user_id
-    ).all()
+    budgets = CategoryBudget.query.filter_by(user_id=user_id).all()
     alerts = []
     for budget in budgets:
         expenses = Expense.query.filter(
             Expense.user_id == user_id,
             Expense.category == budget.category,
-            db.extract('month', Expense.created_at) == now.month,
-            db.extract('year', Expense.created_at) == now.year
+            func.extract('month', Expense.created_at) == now.month,
+            func.extract('year', Expense.created_at) == now.year
         ).all()
         spent = sum(
             float(exp.amount)

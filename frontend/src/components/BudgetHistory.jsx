@@ -3,13 +3,14 @@ import {
   BarChart, Bar, LineChart, Line, XAxis, YAxis,
   CartesianGrid, Tooltip, Legend, ResponsiveContainer
 } from 'recharts'
-import { FiTrendingDown, FiTrendingUp, FiCalendar } from 'react-icons/fi'
+import { FiTrendingDown, FiTrendingUp, FiCalendar, FiRefreshCw } from 'react-icons/fi'
 import { getBudgetHistory, getBudgetHistorySummary, saveBudgetSnapshot } from '../api/budgetApi'
 
 export default function BudgetHistory({ token }) {
   const [history, setHistory] = useState([])
   const [summary, setSummary] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
   const [chartType, setChartType] = useState('bar')
 
   useEffect(() => {
@@ -29,6 +30,21 @@ export default function BudgetHistory({ token }) {
       console.log('Budget history load error:', error)
     }
     setLoading(false)
+  }
+
+  async function handleReload() {
+    setRefreshing(true)
+    try {
+      const [historyData, summaryData] = await Promise.all([
+        getBudgetHistory(token),
+        getBudgetHistorySummary(token),
+      ])
+      setHistory(Array.isArray(historyData) ? historyData : [])
+      setSummary(summaryData)
+    } catch (error) {
+      console.log('Budget history reload error:', error)
+    }
+    setRefreshing(false)
   }
 
   async function handleSaveSnapshot() {
@@ -56,6 +72,15 @@ export default function BudgetHistory({ token }) {
             <h2>📅 Budget History</h2>
             <p className="panel-subtitle">Month-wise budget tracking</p>
           </div>
+          <button
+            className="secondary-button"
+            onClick={handleReload}
+            disabled={refreshing}
+            title="Reload"
+          >
+            <FiRefreshCw className={refreshing ? 'spin-icon' : ''} />
+            {refreshing ? ' Reloading...' : ' Reload'}
+          </button>
         </div>
         <p className="muted">No history yet. Snapshots save automatically at month end.</p>
         <button onClick={handleSaveSnapshot} style={{ marginTop: 12 }}>
@@ -87,6 +112,15 @@ export default function BudgetHistory({ token }) {
           >
             Line
           </button>
+          <button
+            className="secondary-button"
+            onClick={handleReload}
+            disabled={refreshing}
+            title="Reload"
+          >
+            <FiRefreshCw className={refreshing ? 'spin-icon' : ''} />
+            {refreshing ? ' Reloading...' : ' Reload'}
+          </button>
         </div>
       </div>
 
@@ -111,9 +145,9 @@ export default function BudgetHistory({ token }) {
       </div>
 
       {/* Chart */}
-      <div style={{ width: '100%' }}>
+      <div style={{ width: '100%', minHeight: 250 }}>
         {chartType === 'bar' ? (
-          <ResponsiveContainer width="100%" aspect={2.5}>
+          <ResponsiveContainer width="100%" aspect={2.5} minHeight={250}>
             <BarChart data={chartData} margin={{ top: 10, right: 20, left: 0, bottom: 10 }}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="month_label" tick={{ fontSize: 11 }} />
@@ -126,7 +160,7 @@ export default function BudgetHistory({ token }) {
             </BarChart>
           </ResponsiveContainer>
         ) : (
-          <ResponsiveContainer width="100%" aspect={2.5}>
+          <ResponsiveContainer width="100%" aspect={2.5} minHeight={250}>
             <LineChart data={chartData} margin={{ top: 10, right: 20, left: 0, bottom: 10 }}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="month_label" tick={{ fontSize: 11 }} />
