@@ -1,12 +1,30 @@
 from openai import OpenAI
 from config import Config
 import json
+import time
 
 client = OpenAI(api_key=Config.OPENAI_API_KEY)
 
-# In-memory caches for OpenAI calls to optimize page loading speed
+# In-memory caches for OpenAI calls to optimize page loading speed.
+# Each entry stores (value, timestamp); entries older than CACHE_TTL_SECONDS
+# are treated as expired and regenerated, so advice doesn't go stale forever.
 _recommendation_cache = {}
 _investment_cache = {}
+CACHE_TTL_SECONDS = 60 * 60  # 1 hour
+
+
+def _get_cached(cache, key):
+    entry = cache.get(key)
+    if not entry:
+        return None
+    value, cached_at = entry
+    if time.time() - cached_at > CACHE_TTL_SECONDS:
+        return None  # expired
+    return value
+
+
+def _set_cached(cache, key, value):
+    cache[key] = (value, time.time())
 
 def generate_ai_recommendation(
     monthly_budget,
@@ -34,9 +52,10 @@ def generate_ai_recommendation(
         str(festival)
     )
 
-    if cache_key in _recommendation_cache:
+    cached = _get_cached(_recommendation_cache, cache_key)
+    if cached is not None:
         print("OPENAI CACHE HIT = Returning cached AI recommendation")
-        return _recommendation_cache[cache_key]
+        return cached
 
     try:
         prompt = f"""
@@ -80,7 +99,7 @@ Return plain text only.
         )
 
         advice = response.choices[0].message.content
-        _recommendation_cache[cache_key] = advice
+        _set_cached(_recommendation_cache, cache_key, advice)
         return advice
 
     except Exception as e:
@@ -91,7 +110,7 @@ Return plain text only.
             f"₹{monthly_budget:.0f}. "
             f"Try to keep daily expenses within ₹{daily_budget:.0f}."
         )
-        _recommendation_cache[cache_key] = fallback
+        _set_cached(_recommendation_cache, cache_key, fallback)
         return fallback
 
 
@@ -116,9 +135,10 @@ def generate_investment_suggestion(
         str(risk_level)
     )
 
-    if cache_key in _investment_cache:
+    cached = _get_cached(_investment_cache, cache_key)
+    if cached is not None:
         print("OPENAI CACHE HIT = Returning cached investment suggestion")
-        return _investment_cache[cache_key]
+        return cached
 
     try:
         prompt = f"""
@@ -174,7 +194,7 @@ Return ONLY valid JSON, no markdown, no commentary, in this exact shape:
             "max_amount": round(float(parsed.get("max_amount", 0)), 2),
             "suggestions": parsed.get("suggestions", [])[:3],
         }
-        _investment_cache[cache_key] = result
+        _set_cached(_investment_cache, cache_key, result)
         return result
 
     except Exception as e:
@@ -187,5 +207,5 @@ Return ONLY valid JSON, no markdown, no commentary, in this exact shape:
             "max_amount": round(fallback_amount, 2),
             "suggestions": ["Short-term FD", "Liquid mutual fund"],
         }
-        _investment_cache[cache_key] = fallback
+        _set_cached(_investment_cache, cache_key, fallback)
         return fallback

@@ -99,6 +99,12 @@ def start_scheduler(app):
     run_with_app_context(backup_expenses)
     print('Initial backup completed on startup')
 
+    # Immediate recurring-expense check on server startup — so if
+    # today is the due date for an EMI/rent/subscription, it gets
+    # added right away instead of waiting for the next scheduled run.
+    process_due_recurring_expenses(app)
+    print('Initial recurring expense check completed on startup')
+
     # Recurring backups every 6 hours — keeps data fresh even if the
     # server stays running for days without a restart.
     scheduler.add_job(
@@ -116,13 +122,15 @@ def start_scheduler(app):
         trigger='cron', day=1, hour=0, minute=30
     )
 
-    # Recurring expenses (EMI, rent, subscriptions) — checked daily at 01:00
+    # Recurring expenses (EMI, rent, subscriptions) — checked every hour,
+    # so a due item gets added within an hour of its due date instead of
+    # waiting for a once-daily 1 AM run.
     scheduler.add_job(
         func=lambda: process_due_recurring_expenses(app),
-        trigger='cron', hour=1, minute=0
+        trigger='interval', hours=1
     )
 
     scheduler.start()
     _scheduler = scheduler
-    print('Scheduler started: backups every 6 hours + monthly budget history enabled')
+    print('Scheduler started: backups every 6 hours + recurring expenses checked hourly + monthly budget history enabled')
     return scheduler

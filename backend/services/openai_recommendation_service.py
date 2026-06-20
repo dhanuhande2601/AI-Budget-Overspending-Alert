@@ -1,12 +1,17 @@
 from openai import OpenAI
 from config import Config
+import time
 
 client = OpenAI(
     api_key=Config.OPENAI_API_KEY
 )
 
-# In-memory cache for category advice to prevent slow page reloads
+# In-memory cache for category advice to prevent slow page reloads.
+# Entries expire after CACHE_TTL_SECONDS so advice refreshes periodically
+# instead of staying stale forever.
 _category_advice_cache = {}
+CACHE_TTL_SECONDS = 60 * 60  # 1 hour
+
 
 def get_ai_recommendation(
     category,
@@ -26,9 +31,12 @@ def get_ai_recommendation(
         round(float(budget or 0), 2)
     )
 
-    if cache_key in _category_advice_cache:
-        print("OPENAI CACHE HIT = Returning cached category AI recommendation")
-        return _category_advice_cache[cache_key]
+    cached_entry = _category_advice_cache.get(cache_key)
+    if cached_entry:
+        cached_value, cached_at = cached_entry
+        if time.time() - cached_at <= CACHE_TTL_SECONDS:
+            print("OPENAI CACHE HIT = Returning cached category AI recommendation")
+            return cached_value
 
     prompt = f"""
 You are an expert financial advisor.
@@ -74,7 +82,7 @@ Suggestion: Reduce food delivery orders and cook at home more often.
             ai_text
         )
 
-        _category_advice_cache[cache_key] = ai_text
+        _category_advice_cache[cache_key] = (ai_text, time.time())
         return ai_text
 
     except Exception as e:
@@ -108,5 +116,5 @@ Suggestion: Reduce food delivery orders and cook at home more often.
                 f"Suggestion: Spending in {category} is under control."
             )
 
-        _category_advice_cache[cache_key] = fallback
+        _category_advice_cache[cache_key] = (fallback, time.time())
         return fallback
