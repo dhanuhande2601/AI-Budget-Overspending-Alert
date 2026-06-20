@@ -10,7 +10,6 @@ import {
   updateIncomeSavings,
   updateProfile,
   getCategoryAlerts,
-  getMonthlyInsights,
   getLatestExpenses,
   setCategoryBudgets,
   getRecommendations,
@@ -24,7 +23,6 @@ import ExpenseSection from './components/ExpenseSection'
 import Metrics from './components/Metrics'
 import CategoryBudgetSetup from './components/CategoryBudgetSetup'
 import LatestExpensesByCategory from './components/LatestExpensesByCategory'
-import MonthlyInsights from './components/MonthlyInsights'
 import ProfileModal from './components/ProfileModal'
 import SMSExpense from './components/SMSExpense'
 import CategoryPredictionsChart from './components/CategoryPredictionsChart'
@@ -112,7 +110,6 @@ function App() {
   const [newSavings, setNewSavings] = useState('')
   const [recommendations, setRecommendations] = useState(null)
   const [categoryPredictions, setCategoryPredictions] = useState(null)
-  const [monthlyInsights, setMonthlyInsights] = useState(null)
   const [categoryBudgets, setCategoryBudgetsState] = useState([])
   const [categoryAlerts, setCategoryAlerts] = useState([])
   const [latestExpenses, setLatestExpenses] = useState([])
@@ -247,14 +244,12 @@ function App() {
       const data = await fetchDashboardData(token)
       updateDashboard(data)
 
-      const [recoData, predData, insightsData] = await Promise.all([
+      const [recoData, predData] = await Promise.all([
         getRecommendations(token).catch(() => null),
         getCategoryPredictions(token).catch(() => null),
-        getMonthlyInsights(token).catch(() => null),
       ])
       setRecommendations(recoData)
       setCategoryPredictions(predData)
-      setMonthlyInsights(insightsData)
     } catch (error) {
       console.log('Dashboard refresh error:', error)
     }
@@ -610,8 +605,6 @@ function App() {
 
         <RecurringExpenses token={token} />
 
-        <MonthlyInsights data={monthlyInsights} />
-
         {categoryPredictions && (
           <CategoryPredictionsChart data={categoryPredictions} />
         )}
@@ -622,12 +615,26 @@ function App() {
         />
 
         <AlertsTrendSection
-          alerts={[
-            ...(alerts || []),
-            ...(Array.isArray(categoryAlerts)
+          alerts={(() => {
+            const richAlerts = Array.isArray(categoryAlerts)
               ? categoryAlerts
-              : categoryAlerts?.alerts || []),
-          ]}
+              : categoryAlerts?.alerts || []
+
+            // Categories already covered by the richer category-level
+            // alerts (which include AI recommendation, exact percent etc).
+            const coveredCategories = new Set(
+              richAlerts.map((a) => (a.category || '').toLowerCase())
+            )
+
+            // Only keep simpler dashboard alerts for categories that
+            // categoryAlerts didn't already report on, so the same
+            // overspending category never shows up twice.
+            const simpleAlerts = (alerts || []).filter(
+              (a) => !coveredCategories.has((a.category || '').toLowerCase())
+            )
+
+            return [...simpleAlerts, ...richAlerts]
+          })()}
           analytics={analytics}
           isBudgetExceeded={isBudgetExceeded}
           isBudgetWarning={isBudgetWarning}

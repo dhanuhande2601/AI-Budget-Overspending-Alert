@@ -185,10 +185,13 @@ def add_expense():
 
         if current_user.phone:
             for alert in alerts:
-                send_sms(
-                    current_user.phone,
-                    f"⚠ Budget Alert: {alert['category']} reached {alert['percent']}% of limit"
-                )
+                try:
+                    send_sms(
+                        current_user.phone,
+                        f"⚠ Budget Alert: {alert['category']} reached {alert['percent']}% of limit"
+                    )
+                except Exception as error:
+                    print("SMS sending failed:", error)
 
         if monthly_budget > 0:
             percentage = (

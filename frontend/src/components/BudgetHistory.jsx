@@ -192,7 +192,17 @@ export default function BudgetHistory({ token }) {
           <tbody>
             {history.map((record) => (
               <tr key={record.id}>
-                <td><FiCalendar style={{ marginRight: 4 }} />{record.month_label}</td>
+                <td>
+                  <FiCalendar style={{ marginRight: 4 }} />{record.month_label}
+                  {record.is_current && (
+                    <span
+                      className="status-badge warning"
+                      style={{ marginLeft: 6, fontSize: 10 }}
+                    >
+                      In Progress
+                    </span>
+                  )}
+                </td>
                 <td>₹{record.monthly_budget.toLocaleString()}</td>
                 <td>₹{record.total_spent.toLocaleString()}</td>
                 <td>₹{record.total_saved.toLocaleString()}</td>
