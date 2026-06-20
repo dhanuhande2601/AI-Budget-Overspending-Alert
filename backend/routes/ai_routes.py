@@ -13,6 +13,7 @@ from services.openai_service import (
     generate_ai_recommendation,
     generate_investment_suggestion,
 )
+from models.budget_history_model import BudgetHistory
 from models.expense_model import Expense
 from models.user_model import User
 from models.category_budget_model import CategoryBudget
@@ -494,22 +495,31 @@ def financial_report():
     today = date.today()
     days_in_month = calendar.monthrange(today.year, today.month)[1]
 
-    expenses = Expense.query.filter_by(user_id=user_id).all()
+    all_expenses = Expense.query.filter_by(user_id=user_id).all()
+
+    # Scope "current spending" to THIS month only — using all-time
+    # expenses here would make the comparison with last month meaningless,
+    # and would also overstate predictions/risk for long-time users.
+    current_month_expenses = [
+        e for e in all_expenses
+        if e.created_at and e.created_at.month == today.month and e.created_at.year == today.year
+    ]
 
     total_spending = 0
     category_summary = {}
-    for expense in expenses:
+    for expense in current_month_expenses:
         total_spending += float(expense.amount)
         category = (expense.category or "").strip().title()
         category_summary[category] = category_summary.get(category, 0) + float(expense.amount)
 
-    predicted_spending = predict_month_end_spending(expenses)
+    predicted_spending = predict_month_end_spending(all_expenses)
     projected_overspend = max(predicted_spending - monthly_budget, 0)
 
     risk_data = calculate_risk_score(total_spending, monthly_budget, predicted_spending)
 
     remaining_days = max(days_in_month - today.day, 1)
     remaining_budget = max(monthly_budget - total_spending, 0)
+    daily_budget = monthly_budget / days_in_month if monthly_budget > 0 else 0
 
     # Daily reduction needed to land on-budget by month end, if overspend is projected
     daily_reduction_needed = (
@@ -527,6 +537,50 @@ def financial_report():
         for cat, amount in sorted_categories[:3]
     ]
 
+    # =========================================
+    # LAST MONTH COMPARISON
+    # =========================================
+    if today.month == 1:
+        prev_month, prev_year = 12, today.year - 1
+    else:
+        prev_month, prev_year = today.month - 1, today.year
+
+    last_month_record = BudgetHistory.query.filter_by(
+        user_id=user_id, month=prev_month, year=prev_year
+    ).first()
+
+    month_comparison = None
+    if last_month_record and last_month_record.total_spent > 0:
+        last_month_spent = float(last_month_record.total_spent)
+        change_amount = total_spending - last_month_spent
+        change_percent = round((change_amount / last_month_spent) * 100, 1)
+
+        month_comparison = {
+            "last_month_spent": round(last_month_spent, 2),
+            "this_month_spent": round(total_spending, 2),
+            "change_amount": round(change_amount, 2),
+            "change_percent": change_percent,
+            "trend": "up" if change_amount > 0 else ("down" if change_amount < 0 else "same"),
+        }
+
+    # =========================================
+    # UPCOMING FESTIVAL
+    # =========================================
+    festival = get_upcoming_festival()
+
+    # =========================================
+    # AI TEXT RECOMMENDATION
+    # =========================================
+    ai_recommendation = generate_ai_recommendation(
+        monthly_budget,
+        total_spending,
+        predicted_spending,
+        daily_budget,
+        remaining_budget,
+        category_summary,
+        festival
+    )
+
     investment = generate_investment_suggestion(
         monthly_income=monthly_income,
         monthly_budget=monthly_budget,
@@ -543,4 +597,7 @@ def financial_report():
         "daily_reduction_needed": daily_reduction_needed,
         "top_categories": top_categories,
         "investment_suggestion": investment,
+        "month_comparison": month_comparison,
+        "festival": festival,
+        "ai_recommendation": ai_recommendation,
     }), 200

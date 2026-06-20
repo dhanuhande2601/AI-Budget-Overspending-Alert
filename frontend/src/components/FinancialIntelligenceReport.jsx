@@ -1,8 +1,12 @@
 import { useEffect, useState } from 'react'
 import {
   FiAlertTriangle,
+  FiCalendar,
+  FiMessageCircle,
   FiPieChart,
   FiTarget,
+  FiTrendingDown,
+  FiTrendingUp,
   FiZap,
 } from 'react-icons/fi'
 import { getFinancialReport, getMonthlyInsights } from '../api/budgetApi'
@@ -69,6 +73,9 @@ export default function FinancialIntelligenceReport({ token }) {
     daily_reduction_needed,
     top_categories = [],
     investment_suggestion = {},
+    month_comparison,
+    festival,
+    ai_recommendation,
   } = report
 
   const risk = RISK_CONFIG[risk_level] || RISK_CONFIG.LOW
@@ -92,6 +99,24 @@ export default function FinancialIntelligenceReport({ token }) {
         </div>
         <span style={{ fontSize: 11, color: 'var(--muted)' }}>Updated today</span>
       </div>
+
+      {/* Upcoming festival heads-up */}
+      {festival && (
+        <div
+          className="warning-alert"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            borderRadius: 10,
+            padding: '10px 12px',
+            marginBottom: 16,
+          }}
+        >
+          <FiCalendar size={15} style={{ flexShrink: 0 }} />
+          <span style={{ fontSize: 13 }}>{festival.alert}</span>
+        </div>
+      )}
 
       {/* Monthly stats strip — merged in from the old standalone Monthly Insights panel */}
       {hasInsights && (
@@ -125,6 +150,39 @@ export default function FinancialIntelligenceReport({ token }) {
             <p style={{ fontSize: 11, color: 'var(--muted)', margin: '0 0 2px' }}>Average expense</p>
             <p style={{ fontSize: 14, fontWeight: 500, margin: 0 }}>{formatINR(insights.average_expense)}</p>
           </div>
+        </div>
+      )}
+
+      {/* Last month comparison */}
+      {month_comparison && (
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: '10px 12px',
+            borderRadius: 10,
+            border: '1px solid var(--soft-border)',
+            marginBottom: 14,
+          }}
+        >
+          <span style={{ fontSize: 13, color: 'var(--muted)' }}>vs last month</span>
+          <span
+            style={{
+              fontSize: 13,
+              fontWeight: 500,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 4,
+              color: month_comparison.trend === 'up' ? '#b42318' : month_comparison.trend === 'down' ? '#16a34a' : 'var(--text-primary)',
+            }}
+          >
+            {month_comparison.trend === 'up' && <FiTrendingUp size={14} />}
+            {month_comparison.trend === 'down' && <FiTrendingDown size={14} />}
+            {month_comparison.trend === 'same'
+              ? 'No change'
+              : `${Math.abs(month_comparison.change_percent)}% ${month_comparison.trend === 'up' ? 'more' : 'less'} (${formatINR(Math.abs(month_comparison.change_amount))})`}
+          </span>
         </div>
       )}
 
@@ -171,6 +229,26 @@ export default function FinancialIntelligenceReport({ token }) {
               <strong>{formatINR(daily_reduction_needed)}/day</strong> for the rest of this month.
             </span>
           </p>
+        </div>
+      )}
+
+      {/* AI text recommendation */}
+      {ai_recommendation && (
+        <div
+          style={{
+            borderRadius: 10,
+            background: 'var(--input-bg)',
+            padding: 12,
+            marginBottom: 16,
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+            <FiMessageCircle size={14} style={{ color: 'var(--muted)' }} />
+            <span style={{ fontSize: 12, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.02em' }}>
+              AI recommendation
+            </span>
+          </div>
+          <p style={{ fontSize: 13, margin: 0, lineHeight: 1.6 }}>{ai_recommendation}</p>
         </div>
       )}
 
