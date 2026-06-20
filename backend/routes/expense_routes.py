@@ -193,10 +193,28 @@ def add_expense():
         if current_user.phone:
             for alert in alerts:
                 try:
-                    send_sms(
-                        current_user.phone,
-                        f"⚠ Budget Alert: {alert['category']} reached {alert['percent']}% of limit"
-                    )
+                    category = alert['category']
+                    budget_amount = round(alert['budget'])
+                    spent_amount = round(alert['spent'])
+                    remaining_amount = round(alert['remaining'])
+
+                    if alert['percent'] >= 100:
+                        extra_amount = round(alert['spent'] - alert['budget'])
+                        sms_text = (
+                            f"⚠ {category} Budget Alert\n"
+                            f"Budget: ₹{budget_amount}\n"
+                            f"Used: ₹{spent_amount}\n"
+                            f"You have exceeded by ₹{extra_amount}"
+                        )
+                    else:
+                        sms_text = (
+                            f"⚠ {category} Budget Alert\n"
+                            f"Budget: ₹{budget_amount}\n"
+                            f"Used: ₹{spent_amount} ({alert['percent']}%)\n"
+                            f"Remaining: ₹{remaining_amount}"
+                        )
+
+                    send_sms(current_user.phone, sms_text)
                 except Exception as error:
                     print("SMS sending failed:", error)
 
