@@ -1,4 +1,5 @@
-from flask import (Blueprint, request, jsonify)
+import threading
+from flask import (Blueprint, request, jsonify, current_app)
 from models.user_model import User
 from models.budget_model import Budget
 from database.db import db
@@ -9,6 +10,13 @@ from flask_jwt_extended import jwt_required, get_jwt_identity
 from services.backup_service import backup_users
 from services.currency_service import get_exchange_rates, SUPPORTED_CURRENCIES
 auth = Blueprint('auth', __name__)
+
+def async_backup_users():
+    app = current_app._get_current_object()
+    def task():
+        with app.app_context():
+            backup_users()
+    threading.Thread(target=task, daemon=True).start()
  
 @auth.route('/register', methods=['POST'])
 def register():
@@ -105,7 +113,7 @@ def register():
         )
  
     db.session.commit()
-    backup_users()  # Call the backup function after user registration
+    async_backup_users()  # Call the backup function after user registration
  
     return jsonify({
         "message": "User registered successfully"

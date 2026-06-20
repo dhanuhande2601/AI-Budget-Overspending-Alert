@@ -1,4 +1,5 @@
-from flask import Blueprint, request, jsonify
+import threading
+from flask import Blueprint, request, jsonify, current_app
 from flask_jwt_extended import (jwt_required,get_jwt_identity)
 from database.db import db
 from services.category_alert_service import (check_category_alerts)
@@ -8,7 +9,6 @@ from models.expense_model import Expense
 from services.backup_service import backup_expenses
 from services.sms_parser import parse_expense_sms
 from services.email_service import send_budget_alert
-from flask import request
 from models.category_budget_model import CategoryBudget
 from services.ai_budget_engine import detect_overspending
 from services.sms_service import send_sms
@@ -17,6 +17,13 @@ expense = Blueprint(
     'expense',
     __name__
 )
+
+def async_backup_expenses():
+    app = current_app._get_current_object()
+    def task():
+        with app.app_context():
+            backup_expenses()
+    threading.Thread(target=task, daemon=True).start()
 def get_total_spending(user_id):
     expenses = Expense.query.filter_by(
         user_id=user_id
@@ -37,7 +44,7 @@ def create_expense(user_id, title, amount, category, payment_method):
     db.session.add(new_expense)
     db.session.commit()
 
-    backup_expenses()
+    async_backup_expenses()
 
     return new_expense
 
@@ -321,7 +328,7 @@ def delete_expense(expense_id):
 
     db.session.commit()
 
-    backup_expenses()
+    async_backup_expenses()
 
     return jsonify({
 
@@ -620,7 +627,7 @@ def update_expense(expense_id):
 
     db.session.commit()
 
-    backup_expenses()
+    async_backup_expenses()
 
     return jsonify({
         "message":

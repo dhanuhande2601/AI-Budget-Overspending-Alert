@@ -4,6 +4,10 @@ import json
 
 client = OpenAI(api_key=Config.OPENAI_API_KEY)
 
+# In-memory caches for OpenAI calls to optimize page loading speed
+_recommendation_cache = {}
+_investment_cache = {}
+
 def generate_ai_recommendation(
     monthly_budget,
     total_spending,
@@ -13,6 +17,27 @@ def generate_ai_recommendation(
     category_summary,
     festival=None
 ):
+    # Construct a cache key based on query metrics
+    summary_key = None
+    if isinstance(category_summary, list):
+        summary_key = tuple(sorted((item.get('category', ''), float(item.get('amount', 0))) for item in category_summary))
+    else:
+        summary_key = str(category_summary)
+
+    cache_key = (
+        round(float(monthly_budget or 0), 2),
+        round(float(total_spending or 0), 2),
+        round(float(predicted_spending or 0), 2),
+        round(float(daily_budget or 0), 2),
+        round(float(remaining_budget or 0), 2),
+        summary_key,
+        str(festival)
+    )
+
+    if cache_key in _recommendation_cache:
+        print("OPENAI CACHE HIT = Returning cached AI recommendation")
+        return _recommendation_cache[cache_key]
+
     try:
         prompt = f"""
 You are a personal finance advisor.
@@ -54,16 +79,20 @@ Return plain text only.
             max_tokens=150
         )
 
-        return response.choices[0].message.content
+        advice = response.choices[0].message.content
+        _recommendation_cache[cache_key] = advice
+        return advice
 
     except Exception as e:
         print("OpenAI Error:", e)
 
-        return (
+        fallback = (
             f"You have spent ₹{total_spending:.0f} out of "
             f"₹{monthly_budget:.0f}. "
             f"Try to keep daily expenses within ₹{daily_budget:.0f}."
         )
+        _recommendation_cache[cache_key] = fallback
+        return fallback
 
 
 def generate_investment_suggestion(
@@ -79,6 +108,18 @@ def generate_investment_suggestion(
     left over after budgeted spending. Framed as general informational
     suggestions, not personalized financial advice.
     """
+    cache_key = (
+        round(float(monthly_income or 0), 2),
+        round(float(monthly_budget or 0), 2),
+        round(float(total_spending or 0), 2),
+        round(float(remaining_budget or 0), 2),
+        str(risk_level)
+    )
+
+    if cache_key in _investment_cache:
+        print("OPENAI CACHE HIT = Returning cached investment suggestion")
+        return _investment_cache[cache_key]
+
     try:
         prompt = f"""
 You are a cautious personal finance assistant. Based on this user's
@@ -128,19 +169,23 @@ Return ONLY valid JSON, no markdown, no commentary, in this exact shape:
         raw = raw.replace("```json", "").replace("```", "").strip()
         parsed = json.loads(raw)
 
-        return {
+        result = {
             "min_amount": round(float(parsed.get("min_amount", 0)), 2),
             "max_amount": round(float(parsed.get("max_amount", 0)), 2),
             "suggestions": parsed.get("suggestions", [])[:3],
         }
+        _investment_cache[cache_key] = result
+        return result
 
     except Exception as e:
         print("OpenAI investment suggestion error:", e)
 
         # Safe fallback: a conservative 10% of whatever's left, no AI needed
         fallback_amount = max(remaining_budget * 0.1, 0)
-        return {
+        fallback = {
             "min_amount": round(fallback_amount * 0.5, 2),
             "max_amount": round(fallback_amount, 2),
             "suggestions": ["Short-term FD", "Liquid mutual fund"],
         }
+        _investment_cache[cache_key] = fallback
+        return fallback

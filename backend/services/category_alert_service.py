@@ -142,22 +142,18 @@ def check_category_alerts(user_id):
                 ai_text = (
                     "Unable to generate AI recommendation."
                 )
-                festival_message = get_upcoming_festival(
-                    spent,
-                    limit
+
+            festival_message = None
+            festival = get_upcoming_festival()
+
+            if festival and percent >= 80:
+
+                festival_message = (
+                    f"{festival['name']} is coming in "
+                    f"{festival['days_left']} days. "
+                    f"You have only ₹{max(remaining,0)} left "
+                    f"in {budget.category} budget."
                 )
-                festival = get_upcoming_festival()
-
-                festival_message = None
-
-                if festival and percent >= 80:
-
-                    festival_message = (
-                        f"{festival['name']} is coming in "
-                        f"{festival['days_left']} days. "
-                        f"You have only ₹{max(remaining,0)} left "
-                        f"in {budget.category} budget."
-                    )
 
             alert_data = {
                 "category": budget.category,
@@ -167,11 +163,7 @@ def check_category_alerts(user_id):
                 "percent": percent,
                 "type": alert_type,
                 "message": message,
-                "ai_recommendation": get_ai_recommendation(
-                    budget.category,
-                    spent,
-                    limit
-                ),
+                "ai_recommendation": ai_text,
                 "festival_prediction": festival_message if festival_message else ""
             }
 

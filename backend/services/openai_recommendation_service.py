@@ -5,6 +5,8 @@ client = OpenAI(
     api_key=Config.OPENAI_API_KEY
 )
 
+# In-memory cache for category advice to prevent slow page reloads
+_category_advice_cache = {}
 
 def get_ai_recommendation(
     category,
@@ -17,6 +19,16 @@ def get_ai_recommendation(
         if budget > 0
         else 0
     )
+
+    cache_key = (
+        str(category).strip().title(),
+        round(float(spent or 0), 2),
+        round(float(budget or 0), 2)
+    )
+
+    if cache_key in _category_advice_cache:
+        print("OPENAI CACHE HIT = Returning cached category AI recommendation")
+        return _category_advice_cache[cache_key]
 
     prompt = f"""
 You are an expert financial advisor.
@@ -62,6 +74,7 @@ Suggestion: Reduce food delivery orders and cook at home more often.
             ai_text
         )
 
+        _category_advice_cache[cache_key] = ai_text
         return ai_text
 
     except Exception as e:
@@ -71,9 +84,10 @@ Suggestion: Reduce food delivery orders and cook at home more often.
             str(e)
         )
 
+        fallback = ""
         if usage_percent >= 100:
 
-            return (
+            fallback = (
                 "Risk Level: HIGH\n"
                 f"Suggestion: Your {category} budget is exceeded. "
                 "Reduce non-essential expenses immediately."
@@ -81,13 +95,18 @@ Suggestion: Reduce food delivery orders and cook at home more often.
 
         elif usage_percent >= 80:
 
-            return (
+            fallback = (
                 "Risk Level: MEDIUM\n"
                 f"Suggestion: You are close to your {category} budget limit. "
                 "Spend carefully."
             )
 
-        return (
-            "Risk Level: LOW\n"
-            f"Suggestion: Spending in {category} is under control."
-        )
+        else:
+
+            fallback = (
+                "Risk Level: LOW\n"
+                f"Suggestion: Spending in {category} is under control."
+            )
+
+        _category_advice_cache[cache_key] = fallback
+        return fallback
