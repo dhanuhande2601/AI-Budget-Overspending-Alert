@@ -1,4 +1,5 @@
 import os
+import socket
 from datetime import timedelta
 import re
 from flask import Flask
@@ -7,6 +8,18 @@ from flask_jwt_extended import JWTManager
 from sqlalchemy import text
 from flask import request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity
+
+# Global safety net: many libraries used here (Flask-Mail/smtplib,
+# the festival sync's requests call, etc.) don't accept their own
+# timeout parameter and will hang indefinitely if a server is slow
+# or unreachable. This bounds EVERY plain socket-based network call
+# made by the process to 10 seconds, so a flaky SMTP/API connection
+# can never freeze a background thread (or the whole app) forever.
+# Note: libraries with their own timeout handling (e.g. `requests`,
+# the openai/twilio HTTP clients) are unaffected by this and keep
+# using their own configured timeouts.
+socket.setdefaulttimeout(10)
+
 # from routes.user import user_bp
 from config import Config
 from database.db import db

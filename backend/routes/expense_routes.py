@@ -60,22 +60,8 @@ def add_expense():
     data = request.get_json(silent=True) or {}
 
     title = (data.get('title') or '').strip()
-
     category = (data.get('category') or '').strip().title()
-    user = User.query.get(current_user_id)
-    expenses = Expense.query.filter_by(user_id=current_user_id).all()
-    spent = sum(e.amount for e in expenses)
-    budget = float(user.available_budget or 0)
-    if budget > 0:
-        percentage = (spent / budget) * 100
-        if percentage >= 75 and not user.budget_alert_75_sent:
-            send_budget_alert(user.email, percentage, spent, budget)
-            user.budget_alert_75_sent = True
-            db.session.commit()
-        elif percentage >= 50 and not user.budget_alert_50_sent:
-            send_budget_alert(user.email, percentage, spent, budget)
-            user.budget_alert_50_sent = True
-            db.session.commit()
+
     payment_method = (
         (data.get('payment_method') or '')
         .strip()
@@ -131,7 +117,7 @@ def add_expense():
             "message": "Amount must be greater than zero"
         }), 400
 
-    # Create expense
+    # Create expense - this is the only part the user needs to wait on
     create_expense(
         current_user_id,
         title,
@@ -148,129 +134,108 @@ def add_expense():
     )
 
     print("OVERSPENDING ALERTS =", overspending_alerts)
+
     # =========================================
-    # EMAIL ALERTS
+    # NOTIFICATIONS (email, SMS, AI advice) run
+    # in the background so the response returns
+    # immediately instead of waiting on SMTP/Twilio/
+    # OpenAI round-trips, which can each take seconds.
     # =========================================
-    current_user = User.query.get(
-        current_user_id
-    )
-
-    sms_message = (
-        f"Expense Added\n"
-        f"Title: {title}\n"
-        f"Amount: ₹{amount}\n"
-        f"Category: {category}\n"
-        f"Total Spending: ₹{total_spending}"
-    )
-
-    if current_user:
-
-        # Category alerts should include the new expense
-        print("CHECK_CATEGORY_ALERTS CALLED")
-        
-        alerts = check_category_alerts(
-            current_user_id
-        )
-        print("CATEGORY ALERT RESULT =", alerts)
-
-        for alert in alerts:
-            
-            try:
-                send_category_alert(
-                    current_user.email,
-                    alert["category"],
-                    alert["percent"],
-                    alert["type"]
-                )
-                
-            except Exception as error:
-                print("Category email sending failed:", error)
-
-        monthly_budget = float(
-            current_user.available_budget or 0
-        )
-
-        if current_user.phone:
-            for alert in alerts:
-                try:
-                    category = alert['category']
-                    budget_amount = round(alert['budget'])
-                    spent_amount = round(alert['spent'])
-                    remaining_amount = round(alert['remaining'])
-
-                    if alert['percent'] >= 100:
-                        extra_amount = round(alert['spent'] - alert['budget'])
-                        sms_text = (
-                            f"⚠ {category} Budget Alert\n"
-                            f"Budget: ₹{budget_amount}\n"
-                            f"Used: ₹{spent_amount}\n"
-                            f"You have exceeded by ₹{extra_amount}"
-                        )
-                    else:
-                        sms_text = (
-                            f"⚠ {category} Budget Alert\n"
-                            f"Budget: ₹{budget_amount}\n"
-                            f"Used: ₹{spent_amount} ({alert['percent']}%)\n"
-                            f"Remaining: ₹{remaining_amount}"
-                        )
-
-                    send_sms(current_user.phone, sms_text)
-                except Exception as error:
-                    print("SMS sending failed:", error)
-
-        if monthly_budget > 0:
-            percentage = (
-                total_spending /
-                monthly_budget
-            ) * 100
-            try:
-
-                if percentage >= 75 and not user.budget_alert_75_sent:
-                    send_budget_alert(user.email, percentage, spent, budget)
-                    user.budget_alert_75_sent = True
-                    db.session.commit()
-                elif percentage >= 50 and not user.budget_alert_50_sent:
-                    send_budget_alert(user.email, percentage, spent, budget)
-                    user.budget_alert_50_sent = True
-                    db.session.commit()
-
-                elif (
-                    percentage >= 90
-                    and percentage < 100
-                    and not current_user.budget_alert_90_sent
-                ):
-                    send_budget_alert(
-                        current_user.email,
-                        90,
-                        total_spending,
-                        monthly_budget
-                    )
-                    current_user.budget_alert_90_sent = True
-                    db.session.commit()
-
-                elif percentage >= 100 and not current_user.budget_alert_100_sent:
-                    send_budget_alert(
-                        current_user.email,
-                        100,
-                        total_spending,
-                        monthly_budget
-                    )
-                    current_user.budget_alert_100_sent = True
-                    db.session.commit()
-                
-
-            except Exception as error:
-
-                print(
-                    "Budget email sending failed:",
-                    error
-                )
+    _run_expense_notifications_async(current_user_id, total_spending)
 
     return jsonify({
         "message": "Expense added successfully",
         "total_spending": total_spending,
         "overspending_alerts": overspending_alerts
     }), 201
+
+
+def _run_expense_notifications_async(current_user_id, total_spending):
+    app = current_app._get_current_object()
+
+    def task():
+        with app.app_context():
+            try:
+                current_user = User.query.get(current_user_id)
+                if not current_user:
+                    return
+
+                # Category-level alerts (email + SMS), includes AI advice
+                print("CHECK_CATEGORY_ALERTS CALLED")
+                alerts = check_category_alerts(current_user_id)
+                print("CATEGORY ALERT RESULT =", alerts)
+
+                for alert in alerts:
+                    try:
+                        send_category_alert(
+                            current_user.email,
+                            alert["category"],
+                            alert["percent"],
+                            alert["type"]
+                        )
+                    except Exception as error:
+                        print("Category email sending failed:", error)
+
+                if current_user.phone:
+                    for alert in alerts:
+                        try:
+                            category = alert['category']
+                            budget_amount = round(alert['budget'])
+                            spent_amount = round(alert['spent'])
+                            remaining_amount = round(alert['remaining'])
+
+                            if alert['percent'] >= 100:
+                                extra_amount = round(alert['spent'] - alert['budget'])
+                                sms_text = (
+                                    f"⚠ {category} Budget Alert\n"
+                                    f"Budget: ₹{budget_amount}\n"
+                                    f"Used: ₹{spent_amount}\n"
+                                    f"You have exceeded by ₹{extra_amount}"
+                                )
+                            else:
+                                sms_text = (
+                                    f"⚠ {category} Budget Alert\n"
+                                    f"Budget: ₹{budget_amount}\n"
+                                    f"Used: ₹{spent_amount} ({alert['percent']}%)\n"
+                                    f"Remaining: ₹{remaining_amount}"
+                                )
+
+                            send_sms(current_user.phone, sms_text)
+                        except Exception as error:
+                            print("SMS sending failed:", error)
+
+                # Overall monthly-budget email alerts (one-time per threshold per cycle)
+                monthly_budget = float(current_user.available_budget or 0)
+                if monthly_budget > 0:
+                    percentage = (total_spending / monthly_budget) * 100
+                    try:
+                        if percentage >= 100 and not current_user.budget_alert_100_sent:
+                            send_budget_alert(current_user.email, 100, total_spending, monthly_budget)
+                            current_user.budget_alert_100_sent = True
+                            db.session.commit()
+
+                        elif percentage >= 90 and not current_user.budget_alert_90_sent:
+                            send_budget_alert(current_user.email, 90, total_spending, monthly_budget)
+                            current_user.budget_alert_90_sent = True
+                            db.session.commit()
+
+                        elif percentage >= 75 and not current_user.budget_alert_75_sent:
+                            send_budget_alert(current_user.email, percentage, total_spending, monthly_budget)
+                            current_user.budget_alert_75_sent = True
+                            db.session.commit()
+
+                        elif percentage >= 50 and not current_user.budget_alert_50_sent:
+                            send_budget_alert(current_user.email, percentage, total_spending, monthly_budget)
+                            current_user.budget_alert_50_sent = True
+                            db.session.commit()
+
+                    except Exception as error:
+                        print("Budget email sending failed:", error)
+
+            except Exception as error:
+                print("Background notification task failed:", error)
+
+    threading.Thread(target=task, daemon=True).start()
 # =========================================
 # GET ALL EXPENSES
 # =========================================
