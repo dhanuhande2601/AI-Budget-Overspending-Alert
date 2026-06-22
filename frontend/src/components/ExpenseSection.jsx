@@ -50,6 +50,8 @@ function ExpenseSection({
         Health: ['medical', 'pharmacy', 'hospital', 'clinic', 'medicine', 'doctor'],
         Adventure: ['movie', 'netflix', 'spotify', 'cinema', 'trip', 'trek', 'park'],
         Loan: ['emi', 'loan', 'installment'],
+        Bills: ['electricity', 'bill', 'recharge', 'broadband', 'wifi', 'mobile', 'postpaid', 'gas bill', 'water bill'],
+        Grocery: ['grocery', 'groceries', 'kirana', 'vegetables', 'milk', 'ration', 'household'],
       }
 
       let category = ''
@@ -145,6 +147,8 @@ function ExpenseSection({
           <option value="Health">Health</option>
           <option value="Adventure">Adventure</option>
           <option value="Loan">Loan/EMI</option>
+          <option value="Bills">Bills</option>
+          <option value="Grocery">Grocery/Household</option>
         </select>
         <input
           placeholder="Payment method"

@@ -125,6 +125,8 @@ export default function RecurringExpenses({ token }) {
             <option value="Shopping">Shopping</option>
             <option value="Health">Health</option>
             <option value="Adventure">Adventure</option>
+            <option value="Bills">Bills</option>
+            <option value="Grocery">Grocery/Household</option>
           </select>
           <input
             placeholder="Payment method"

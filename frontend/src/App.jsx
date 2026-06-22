@@ -119,6 +119,9 @@ function App() {
     shopping: '',
     health: '',
     adventure: '',
+    loan: '',
+    bills: '',
+    grocery: '',
   })
 
   const authHeaders = useMemo(
@@ -276,6 +279,9 @@ function App() {
         shopping: '',
         health: '',
         adventure: '',
+        loan: '',
+        bills: '',
+        grocery: '',
       }
       if (Array.isArray(data)) {
         data.forEach((item) => {

@@ -223,9 +223,12 @@ function ProfileModal({
           <div className="profile-section">
             <h3>Category-wise Budget</h3>
             <div className="category-budgets-grid">
-              {['food', 'travel', 'shopping', 'health', 'adventure', 'loan'].map((category) => (
+              {['food', 'travel', 'shopping', 'health', 'adventure', 'loan', 'bills', 'grocery'].map((category) => {
+                const categoryLabels = { loan: 'Loan/EMI', grocery: 'Grocery/Household' }
+                const label = categoryLabels[category] || (category.charAt(0).toUpperCase() + category.slice(1))
+                return (
                 <div key={category} className="category-budget-item">
-                  <label>{category === 'loan' ? 'Loan/EMI' : category.charAt(0).toUpperCase() + category.slice(1)}</label>
+                  <label>{label}</label>
                   {editMode ? (
                     <input
                       type="number"
@@ -237,7 +240,7 @@ function ProfileModal({
                     <p>{money(categoryForm[category] || 0)}</p>
                   )}
                 </div>
-              ))}
+              )})}
             </div>
           </div>
 

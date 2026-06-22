@@ -18,6 +18,8 @@ CATEGORY_KEYWORDS = [
     ('Health', ['medical', 'pharmacy', 'hospital', 'clinic', 'medicine', 'doctor']),
     ('Adventure', ['movie', 'netflix', 'prime', 'spotify', 'bookmyshow', 'cinema', 'trip', 'trek']),
     ('Loan', ['emi', 'loan', 'installment']),
+    ('Bills', ['electricity', 'bill', 'recharge', 'broadband', 'wifi', 'mobile', 'postpaid']),
+    ('Grocery', ['grocery', 'groceries', 'kirana', 'bigbasket', 'blinkit', 'zepto', 'dmart']),
 ]
 
 PAYMENT_KEYWORDS = [

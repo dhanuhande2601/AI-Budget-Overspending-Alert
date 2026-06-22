@@ -12,10 +12,13 @@ function CategoryBudgetSetup({ form, setForm, onSave }) {
     'health',
     'adventure',
     'loan',
+    'bills',
+    'grocery',
   ]
 
   const labels = {
     loan: 'Loan/EMI',
+    grocery: 'Grocery/Household',
   }
 
   return (

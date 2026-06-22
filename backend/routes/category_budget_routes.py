@@ -41,7 +41,9 @@ def set_budget():
         "shopping",
         "health",
         "adventure",
-        "loan"
+        "loan",
+        "bills",
+        "grocery"
 
     ]
 
