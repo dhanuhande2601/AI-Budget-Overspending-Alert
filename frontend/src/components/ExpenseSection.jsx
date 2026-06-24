@@ -18,6 +18,7 @@ function ExpenseSection({
   searchTerm,
 }) {
   const [showExpenses, setShowExpenses] = useState(false)
+  const [isListening, setIsListening] = useState(false)
 
   const SpeechRecognition =
     window.SpeechRecognition || window.webkitSpeechRecognition
@@ -101,9 +102,32 @@ function ExpenseSection({
       console.log('Payment =', paymentMethod)
     }
 
+    recognition.onstart = () => {
+      setIsListening(true)
+    }
+
+    recognition.onend = () => {
+      setIsListening(false)
+    }
+
     recognition.onerror = (event) => {
       console.error('Speech recognition error:', event.error)
-      alert('Voice recognition error: ' + event.error + '. Please try again.')
+      setIsListening(false)
+
+      // "no-speech" and "aborted" are normal, expected outcomes (the mic
+      // just didn't pick up any words, or the user stopped it) - not
+      // real errors worth interrupting the user with a popup for.
+      if (event.error === 'no-speech' || event.error === 'aborted') {
+        return
+      }
+
+      const friendlyMessages = {
+        'not-allowed': 'Microphone access was blocked. Please allow microphone permission in your browser settings.',
+        'audio-capture': 'No microphone was found. Please connect a microphone and try again.',
+        'network': 'A network error interrupted voice recognition. Please try again.',
+      }
+
+      alert(friendlyMessages[event.error] || 'Voice recognition had a problem. Please try again.')
     }
 
     recognition.start()
@@ -117,8 +141,13 @@ function ExpenseSection({
     <>
       <form className="expense-form" onSubmit={onSubmit}>
         <h2>{editingExpenseId ? 'Update expense' : 'Add expense'}</h2>
-        <button type="button" className="voice-btn" onClick={startListening}>
-          🎤 Voice Expense
+        <button
+          type="button"
+          className="voice-btn"
+          onClick={startListening}
+          disabled={isListening}
+        >
+          {isListening ? '🎙️ Listening... speak now' : '🎤 Voice Expense'}
         </button>
         <input
           required

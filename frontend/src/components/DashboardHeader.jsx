@@ -1,6 +1,4 @@
-import { FiBell, FiBellOff, FiDownload, FiFileText, FiLogOut, FiMoon, FiSun, FiUser } from 'react-icons/fi'
-import { useEffect, useState } from 'react'
-import { getNotificationPermission, requestNotificationPermission } from '../utils/notificationHelper'
+import { FiDownload, FiFileText, FiLogOut, FiMoon, FiSun, FiUser } from 'react-icons/fi'
 
 function DashboardHeader({
   analytics = {},
@@ -21,37 +19,6 @@ function DashboardHeader({
 
   const riskLevel = riskScore >= 70 ? 'high' : riskScore >= 40 ? 'medium' : 'low'
 
-  const [notifPermission, setNotifPermission] = useState(getNotificationPermission())
-  const [notifMessage, setNotifMessage] = useState('')
-
-  useEffect(() => {
-    setNotifPermission(getNotificationPermission())
-  }, [])
-
-  useEffect(() => {
-    if (!notifMessage) return
-    const timer = setTimeout(() => setNotifMessage(''), 3000)
-    return () => clearTimeout(timer)
-  }, [notifMessage])
-
-  async function handleNotificationClick() {
-    if (notifPermission === 'denied') {
-      setNotifMessage('Blocked — enable notifications in browser settings')
-      return
-    }
-    if (notifPermission === 'granted') {
-      setNotifMessage('Notifications are already enabled')
-      return
-    }
-    const result = await requestNotificationPermission()
-    setNotifPermission(result)
-    setNotifMessage(
-      result === 'granted'
-        ? 'Notifications enabled successfully'
-        : 'Notifications were not enabled'
-    )
-  }
-
   return (
     <header className="topbar">
       <div className="topbar-header">
@@ -60,40 +27,7 @@ function DashboardHeader({
           <h1>Welcome, {user?.name}</h1>
         </div>
 
-        <div style={{ display: 'flex', gap: '10px', alignItems: 'center', position: 'relative' }}>
-          <button
-            className="dark-toggle"
-            onClick={handleNotificationClick}
-            title={
-              notifPermission === 'granted'
-                ? 'Notifications enabled'
-                : 'Click to enable budget alerts'
-            }
-          >
-            {notifPermission === 'granted' ? <FiBell size={18} /> : <FiBellOff size={18} />}
-          </button>
-
-          {notifMessage && (
-            <div
-              style={{
-                position: 'absolute',
-                top: '110%',
-                left: 0,
-                background: 'var(--card)',
-                color: 'var(--text-primary)',
-                border: '1px solid var(--soft-border)',
-                borderRadius: '8px',
-                padding: '8px 12px',
-                fontSize: '12px',
-                boxShadow: 'var(--shadow-md)',
-                whiteSpace: 'nowrap',
-                zIndex: 50,
-              }}
-            >
-              {notifMessage}
-            </div>
-          )}
-
+        <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
           <button className="dark-toggle" onClick={onToggleDark} title="Toggle dark mode">
             {darkMode ? <FiSun size={18} /> : <FiMoon size={18} />}
             {darkMode ? 'Light' : 'Dark'}

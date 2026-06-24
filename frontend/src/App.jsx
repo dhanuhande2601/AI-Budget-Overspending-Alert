@@ -31,10 +31,6 @@ import FinancialIntelligenceReport from './components/FinancialIntelligenceRepor
 import RecurringExpenses from './components/RecurringExpenses'
 import { getCurrencyRates } from './api/budgetApi'
 import { displayAmount } from './utils/currencyHelper'
-import {
-  requestNotificationPermission,
-  showBudgetNotification,
-} from './utils/notificationHelper'
 import './App.css'
 
 const emptyAuth = {
@@ -206,32 +202,6 @@ function App() {
   const isBudgetExceeded = hasBudget && totalSpending > monthlyBudget
   const isBudgetWarning = hasBudget && !isBudgetExceeded && totalSpending >= monthlyBudget * 0.8
   const alertCount = alerts.length + categoryAlerts.length
-
-  // Ask for notification permission once user logs in
-  useEffect(() => {
-    if (token) {
-      requestNotificationPermission()
-    }
-  }, [token])
-
-  // Trigger a browser notification when budget crosses 80% or is exceeded
-  useEffect(() => {
-    if (!hasBudget) return
-
-    if (isBudgetExceeded) {
-      showBudgetNotification(
-        '🚨 Budget Exceeded!',
-        `You've spent ₹${totalSpending.toLocaleString()} out of ₹${monthlyBudget.toLocaleString()}. Time to cut back.`,
-        'budget-exceeded'
-      )
-    } else if (isBudgetWarning) {
-      showBudgetNotification(
-        '⚠️ Budget Alert — 80% Used',
-        `You've used ₹${totalSpending.toLocaleString()} of your ₹${monthlyBudget.toLocaleString()} budget.`,
-        'budget-warning'
-      )
-    }
-  }, [isBudgetExceeded, isBudgetWarning, hasBudget, totalSpending, monthlyBudget])
 
   const updateDashboard = useCallback((dashboardData) => {
     setUser(dashboardData?.user || null)

@@ -29,6 +29,17 @@ class CategoryBudget(db.Model):
         default=0
     )
 
+    # Tracks which alert thresholds have already been sent THIS month,
+    # so a category doesn't spam an alert every time any expense is
+    # added while spending sits in the same 50/75/80/90/100+ band.
+    alert_month = db.Column(db.Integer, nullable=True)
+    alert_year = db.Column(db.Integer, nullable=True)
+    alert_50_sent = db.Column(db.Boolean, default=False)
+    alert_75_sent = db.Column(db.Boolean, default=False)
+    alert_80_sent = db.Column(db.Boolean, default=False)
+    alert_90_sent = db.Column(db.Boolean, default=False)
+    alert_100_sent = db.Column(db.Boolean, default=False)
+
     created_at = db.Column(
         db.DateTime,
         server_default=db.func.now()

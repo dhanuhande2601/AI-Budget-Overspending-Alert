@@ -211,6 +211,13 @@ def ensure_category_budget_columns():
     required_columns = {
         "created_at": "TIMESTAMP",
         "monthly_limit": "FLOAT DEFAULT 0",
+        "alert_month": "INTEGER",
+        "alert_year": "INTEGER",
+        "alert_50_sent": "BOOLEAN DEFAULT 0",
+        "alert_75_sent": "BOOLEAN DEFAULT 0",
+        "alert_80_sent": "BOOLEAN DEFAULT 0",
+        "alert_90_sent": "BOOLEAN DEFAULT 0",
+        "alert_100_sent": "BOOLEAN DEFAULT 0",
     }
  
     for column, datatype in required_columns.items():
@@ -253,6 +260,15 @@ def ensure_user_alert_columns():
             "BOOLEAN DEFAULT 0",
  
         "budget_alert_100_sent":
+            "BOOLEAN DEFAULT 0",
+
+        "sms_alert_enabled":
+            "BOOLEAN DEFAULT 0",
+
+        "email_alert_enabled":
+            "BOOLEAN DEFAULT 1",
+
+        "whatsapp_alert_enabled":
             "BOOLEAN DEFAULT 0",
     }
  

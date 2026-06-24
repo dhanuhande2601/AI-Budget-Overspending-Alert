@@ -165,7 +165,13 @@ def _run_expense_notifications_async(current_user_id, total_spending):
                 alerts = check_category_alerts(current_user_id)
                 print("CATEGORY ALERT RESULT =", alerts)
 
-                for alert in alerts:
+                # Only notify for thresholds that haven't already been
+                # sent this month for that category - prevents the same
+                # tier (e.g. 50%) from spamming an SMS/email on every
+                # single expense added while spending stays in that band.
+                new_alerts = [a for a in alerts if a.get("should_notify")]
+
+                for alert in new_alerts:
                     try:
                         send_category_alert(
                             current_user.email,
@@ -177,28 +183,37 @@ def _run_expense_notifications_async(current_user_id, total_spending):
                         print("Category email sending failed:", error)
 
                 if current_user.phone:
-                    for alert in alerts:
+                    for alert in new_alerts:
                         try:
                             category = alert['category']
                             budget_amount = round(alert['budget'])
                             spent_amount = round(alert['spent'])
                             remaining_amount = round(alert['remaining'])
+                            ai_note = (alert.get('ai_recommendation') or '').strip()
+                            # Keep the AI note short for SMS - first sentence only
+                            ai_note_short = ai_note.split('.')[0].strip()
+                            if ai_note_short and not ai_note_short.endswith('.'):
+                                ai_note_short += '.'
 
                             if alert['percent'] >= 100:
                                 extra_amount = round(alert['spent'] - alert['budget'])
                                 sms_text = (
                                     f"⚠ {category} Budget Alert\n"
                                     f"Budget: ₹{budget_amount}\n"
-                                    f"Used: ₹{spent_amount}\n"
+                                    f"Spent: ₹{spent_amount}\n"
+                                    f"Remaining: ₹0\n"
                                     f"You have exceeded by ₹{extra_amount}"
                                 )
                             else:
                                 sms_text = (
                                     f"⚠ {category} Budget Alert\n"
                                     f"Budget: ₹{budget_amount}\n"
-                                    f"Used: ₹{spent_amount} ({alert['percent']}%)\n"
+                                    f"Spent: ₹{spent_amount} ({alert['percent']}%)\n"
                                     f"Remaining: ₹{remaining_amount}"
                                 )
+
+                            if ai_note_short:
+                                sms_text += f"\n💡 {ai_note_short}"
 
                             send_sms(current_user.phone, sms_text)
                         except Exception as error:
