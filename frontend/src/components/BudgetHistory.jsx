@@ -147,9 +147,9 @@ export default function BudgetHistory({ token }) {
       </div>
 
       {/* Chart */}
-      <div style={{ width: '100%', minHeight: 250 }}>
+      <div className="budget-history-chart-frame">
         {chartType === 'bar' ? (
-          <ResponsiveContainer width="100%" aspect={2.5} minHeight={250}>
+          <ResponsiveContainer width="100%" height="100%">
             <BarChart data={chartData} margin={{ top: 10, right: 20, left: 0, bottom: 10 }}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="month_label" tick={{ fontSize: 11 }} />
@@ -162,7 +162,7 @@ export default function BudgetHistory({ token }) {
             </BarChart>
           </ResponsiveContainer>
         ) : (
-          <ResponsiveContainer width="100%" aspect={2.5} minHeight={250}>
+          <ResponsiveContainer width="100%" height="100%">
             <LineChart data={chartData} margin={{ top: 10, right: 20, left: 0, bottom: 10 }}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="month_label" tick={{ fontSize: 11 }} />

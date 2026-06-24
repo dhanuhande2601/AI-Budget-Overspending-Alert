@@ -158,6 +158,41 @@ export async function getFinancialReport(token) {
     headers: getAuthHeaders(token)
   })
 }
+
+export async function getAIForecast(token) {
+  return apiRequest('/ai/forecast', {
+    method: 'GET',
+    headers: getAuthHeaders(token)
+  })
+}
+
+export async function getAIScore(token) {
+  return apiRequest('/ai/score', {
+    method: 'GET',
+    headers: getAuthHeaders(token)
+  })
+}
+
+export async function getSavingsRecommendation(token) {
+  return apiRequest('/ai/savings-recommendation', {
+    method: 'GET',
+    headers: getAuthHeaders(token)
+  })
+}
+
+export async function getAICoach(token) {
+  return apiRequest('/ai/coach', {
+    method: 'GET',
+    headers: getAuthHeaders(token)
+  })
+}
+
+export async function getWeeklyChallenge(token) {
+  return apiRequest('/ai/weekly-challenge', {
+    method: 'GET',
+    headers: getAuthHeaders(token)
+  })
+}
 /* =========================
    EXPENSES
 ========================= */
@@ -296,24 +331,6 @@ export async function setCategoryBudgets(
     }
   )
 }
-// SMS Expense - Preview
-export async function previewSMSExpense(smsText, token) {
-  return apiRequest('/expense/sms/preview', {
-    method: 'POST',
-    headers: getAuthHeaders(token),
-    body: JSON.stringify({ sms_text: smsText })
-  })
-}
- 
-// SMS Expense - Confirm & Save
-export async function addSMSExpense(smsText, token) {
-  return apiRequest('/expense/sms/add', {
-    method: 'POST',
-    headers: getAuthHeaders(token),
-    body: JSON.stringify({ sms_text: smsText })
-  })
-}
- 
 // Budget History - get all month-wise records
 export async function getBudgetHistory(token) {
   return apiRequest('/budget-history/all', {

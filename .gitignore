@@ -12,6 +12,7 @@ backend/pyvenv.cfg
 
 # Logs
 *.log
+*.err
 
 # Environment variables
 .env

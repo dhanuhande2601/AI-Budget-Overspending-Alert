@@ -14,6 +14,7 @@ import {
 } from './api/budgetApi'
 
 import AlertsTrendSection from './components/AlertsTrendSection'
+import AICoachPanel from './components/AICoachPanel'
 import AuthScreen from './components/AuthScreen'
 import DashboardHeader from './components/DashboardHeader'
 import ExpenseSection from './components/ExpenseSection'
@@ -21,7 +22,6 @@ import Metrics from './components/Metrics'
 import CategoryBudgetSetup from './components/CategoryBudgetSetup'
 import LatestExpensesByCategory from './components/LatestExpensesByCategory'
 import ProfileModal from './components/ProfileModal'
-import SMSExpense from './components/SMSExpense'
 import CategoryPredictionsChart from './components/CategoryPredictionsChart'
 import BudgetHistory from './components/BudgetHistory'
 import FinancialIntelligenceReport from './components/FinancialIntelligenceReport'
@@ -83,7 +83,7 @@ function App() {
   const [editingExpenseId, setEditingExpenseId] = useState(null)
   const [user, setUser] = useState(null)
 
-  // Use this everywhere instead of hardcoding ₹ — automatically
+  // Use this everywhere instead of hardcoding currency symbols. It automatically
   // converts from INR (stored value) into the user's chosen currency.
   const formatAmount = useCallback(
     (amountInINR) => displayAmount(amountInINR, user?.currency || 'INR', currencyRates),
@@ -385,29 +385,33 @@ function App() {
     setShowProfile(true)
   }
 
-  async function saveExpense(payloadOverride = null) {
+  async function saveExpense(payloadOverride = null, options = {}) {
     setLoading(true)
     setMessage('')
     try {
+      const forceCreate = Boolean(options.forceCreate)
       const source = payloadOverride || expenseForm
       const payload = { ...source, amount: Number(source.amount) }
-      const path = editingExpenseId
+      const shouldUpdate = editingExpenseId && !forceCreate
+      const path = shouldUpdate
         ? `/expense/update/${editingExpenseId}`
         : '/expense/add'
-      const method = editingExpenseId ? 'PUT' : 'POST'
+      const method = shouldUpdate ? 'PUT' : 'POST'
       await apiRequest(path, {
         method,
         headers: authHeaders,
         body: JSON.stringify(payload),
       })
-      setMessage(editingExpenseId ? 'Expense updated successfully' : 'Expense added successfully')
+      setMessage(shouldUpdate ? 'Expense updated successfully' : 'Expense added successfully')
       setExpenseForm(emptyExpense)
       setEditingExpenseId(null)
       await refreshDashboard()
       await loadLatestExpenses()
       await loadCategoryAlerts()
+      return true
     } catch (error) {
       setMessage(error.message)
+      return false
     } finally {
       setLoading(false)
     }
@@ -419,12 +423,7 @@ function App() {
   }
 
   async function handleVoiceExpense(expenseData) {
-    if (editingExpenseId) {
-      setMessage('Voice filled the form. Click Update Expense to save changes.')
-      return
-    }
-
-    await saveExpense(expenseData)
+    return saveExpense(expenseData, { forceCreate: true })
   }
 
   async function handleDeleteExpense(expenseId) {
@@ -525,68 +524,70 @@ function App() {
       />
 
       <section className="workspace">
-        <ExpenseSection
-          categoryFilter={categoryFilter}
-          editingExpenseId={editingExpenseId}
-          expenseForm={expenseForm}
-          expenses={expenses}
-          filteredExpenses={filteredExpenses}
-          loading={loading}
-          message={message}
-          onCategoryFilterChange={setCategoryFilter}
-          onDeleteExpense={handleDeleteExpense}
-          onExpenseFormChange={updateExpenseForm}
-          onSearchChange={setSearchTerm}
-          onStartEdit={startEditingExpense}
-          onSubmit={handleSaveExpense}
-          onVoiceExpense={handleVoiceExpense}
-          searchTerm={searchTerm}
-        />
+        <div className="workspace-main">
+          <ExpenseSection
+            categoryFilter={categoryFilter}
+            editingExpenseId={editingExpenseId}
+            expenseForm={expenseForm}
+            expenses={expenses}
+            filteredExpenses={filteredExpenses}
+            loading={loading}
+            message={message}
+            onCategoryFilterChange={setCategoryFilter}
+            onDeleteExpense={handleDeleteExpense}
+            onExpenseFormChange={updateExpenseForm}
+            onSearchChange={setSearchTerm}
+            onStartEdit={startEditingExpense}
+            onSubmit={handleSaveExpense}
+            onVoiceExpense={handleVoiceExpense}
+            searchTerm={searchTerm}
+          />
 
-        <SMSExpense onExpenseAdded={refreshDashboard} token={token} />
+          <AlertsTrendSection
+            alerts={(() => {
+              const richAlerts = Array.isArray(categoryAlerts)
+                ? categoryAlerts
+                : categoryAlerts?.alerts || []
 
-        <RecurringExpenses token={token} />
+              const coveredCategories = new Set(
+                richAlerts.map((a) => (a.category || '').toLowerCase())
+              )
 
-        {categoryPredictions && (
-          <CategoryPredictionsChart data={categoryPredictions} />
-        )}
+              const simpleAlerts = (alerts || []).filter(
+                (a) => !coveredCategories.has((a.category || '').toLowerCase())
+              )
 
-        <LatestExpensesByCategory
-          data={latestExpenses}
-          alerts={categoryAlerts}
-        />
+              return [...simpleAlerts, ...richAlerts]
+            })()}
+            analytics={analytics}
+            isBudgetExceeded={isBudgetExceeded}
+            isBudgetWarning={isBudgetWarning}
+            trendData={trendData}
+            weeklyTrendData={weeklyTrendData}
+          />
 
-        <AlertsTrendSection
-          alerts={(() => {
-            const richAlerts = Array.isArray(categoryAlerts)
-              ? categoryAlerts
-              : categoryAlerts?.alerts || []
+          <BudgetHistory token={token} />
 
-            // Categories already covered by the richer category-level
-            // alerts (which include AI recommendation, exact percent etc).
-            const coveredCategories = new Set(
-              richAlerts.map((a) => (a.category || '').toLowerCase())
-            )
+          <FinancialIntelligenceReport token={token} />
+        </div>
 
-            // Only keep simpler dashboard alerts for categories that
-            // categoryAlerts didn't already report on, so the same
-            // overspending category never shows up twice.
-            const simpleAlerts = (alerts || []).filter(
-              (a) => !coveredCategories.has((a.category || '').toLowerCase())
-            )
+        <aside className="workspace-side">
+          <AICoachPanel
+            formatAmount={formatAmount}
+            token={token}
+          />
 
-            return [...simpleAlerts, ...richAlerts]
-          })()}
-          analytics={analytics}
-          isBudgetExceeded={isBudgetExceeded}
-          isBudgetWarning={isBudgetWarning}
-          trendData={trendData}
-          weeklyTrendData={weeklyTrendData}
-        />
+          <RecurringExpenses token={token} />
 
-        <BudgetHistory token={token} />
+          {categoryPredictions && (
+            <CategoryPredictionsChart data={categoryPredictions} />
+          )}
 
-        <FinancialIntelligenceReport token={token} />
+          <LatestExpensesByCategory
+            data={latestExpenses}
+            alerts={categoryAlerts}
+          />
+        </aside>
       </section>
 
       {showProfile && (

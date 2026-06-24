@@ -1,64 +1,76 @@
 import {
-  BarChart, Bar, XAxis, YAxis,
-  CartesianGrid, Tooltip, Legend, ResponsiveContainer
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Legend,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
 } from 'recharts'
 
 export default function CategoryPredictionsChart({ data }) {
   if (!data || !data.predictions) return null
 
-  // Recharts ke liye data format karo
   const chartData = data.predictions.map((item) => ({
     name: item.category,
     Spent: Math.round(item.spent_so_far),
     Predicted: Math.round(item.predicted_total),
-    Budget: Math.round(item.budget_limit || 0)
+    Budget: Math.round(item.budget_limit || 0),
   }))
 
+  const overspendingPredictions = data.predictions.filter(
+    (item) => item.predicted_total > item.budget_limit
+  )
+
   return (
-    <div className="bg-white rounded-2xl p-5 shadow mb-4">
-      <h3 className="text-lg font-semibold mb-1">
-        📊 Month-End Category Predictions
-      </h3>
-      <p className="text-sm text-gray-500 mb-4">
-        Is mahine ke end tak kitna kharch hoga — category wise
-      </p>
+    <div className="panel">
+      <div className="panel-heading compact">
+        <div>
+          <h2>Month-End Predictions</h2>
+          <p className="panel-subtitle">Projected category usage against configured limits.</p>
+        </div>
+      </div>
 
-      <ResponsiveContainer width="100%" height={300}>
-        <BarChart
-          data={chartData}
-          margin={{ top: 10, right: 20, left: 0, bottom: 60 }}
-        >
-          <CartesianGrid strokeDasharray="3 3" />
-          <XAxis
-            dataKey="name"
-            angle={-35}
-            textAnchor="end"
-            interval={0}
-            tick={{ fontSize: 11 }}
-          />
-          <YAxis tick={{ fontSize: 11 }} />
-          <Tooltip formatter={(val) => `₹${val}`} />
-          <Legend verticalAlign="top" />
-          <Bar dataKey="Spent" fill="#60a5fa" radius={[4,4,0,0]} />
-          <Bar dataKey="Predicted" fill="#f97316" radius={[4,4,0,0]} />
-          <Bar dataKey="Budget" fill="#4ade80" radius={[4,4,0,0]} />
-        </BarChart>
-      </ResponsiveContainer>
+      <div className="chart-frame tall">
+        <ResponsiveContainer width="100%" height="100%">
+          <BarChart
+            data={chartData}
+            margin={{ top: 10, right: 12, left: 0, bottom: 64 }}
+          >
+            <CartesianGrid strokeDasharray="3 3" />
+            <XAxis
+              dataKey="name"
+              angle={-35}
+              textAnchor="end"
+              interval={0}
+              tick={{ fontSize: 11 }}
+            />
+            <YAxis tick={{ fontSize: 11 }} />
+            <Tooltip formatter={(val) => `Rs. ${Number(val).toLocaleString()}`} />
+            <Legend verticalAlign="top" />
+            <Bar dataKey="Spent" fill="#2563eb" radius={[4, 4, 0, 0]} />
+            <Bar dataKey="Predicted" fill="#f59e0b" radius={[4, 4, 0, 0]} />
+            <Bar dataKey="Budget" fill="#059669" radius={[4, 4, 0, 0]} />
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
 
-      {/* Warning list */}
-      {data.predictions.filter(p => p.predicted_total > p.budget_limit).length > 0 && (
-        <div className="mt-4 bg-red-50 rounded-xl p-3">
-          <p className="text-sm font-semibold text-red-600 mb-2">
-            ⚠️ In categories me overspend ho sakta hai:
-          </p>
-          {data.predictions
-            .filter(p => p.predicted_total > p.budget_limit)
-            .map((p, i) => (
-              <p key={i} className="text-sm text-red-500">
-                • {p.category} — Predicted ₹{Math.round(p.predicted_total)},
-                Budget ₹{Math.round(p.budget_limit)}
-              </p>
-            ))}
+      {overspendingPredictions.length > 0 && (
+        <div className="alert-list section-block">
+          <p className="summary-title">Projected overspend</p>
+          {overspendingPredictions.map((item) => (
+            <div className="alert-row" key={item.category}>
+              <div>
+                <strong>{item.category}</strong>
+                <p>
+                  Predicted Rs. {Math.round(item.predicted_total).toLocaleString()} against
+                  budget Rs. {Math.round(item.budget_limit).toLocaleString()}.
+                </p>
+              </div>
+              <span className="status-badge danger">Risk</span>
+            </div>
+          ))}
         </div>
       )}
     </div>

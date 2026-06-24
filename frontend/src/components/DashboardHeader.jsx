@@ -15,7 +15,7 @@ function DashboardHeader({
   const savings = Number(user?.monthly_savings || 0)
   const budget = Number(user?.available_budget || user?.monthly_budget || 0)
   const riskScore = analytics?.risk_score || 0
-  const money = formatAmount || ((amt) => `₹${Number(amt || 0).toLocaleString()}`)
+  const money = formatAmount || ((amt) => `Rs. ${Number(amt || 0).toLocaleString()}`)
 
   const riskLevel = riskScore >= 70 ? 'high' : riskScore >= 40 ? 'medium' : 'low'
 
@@ -27,7 +27,7 @@ function DashboardHeader({
           <h1>Welcome, {user?.name}</h1>
         </div>
 
-        <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+        <div className="topbar-controls">
           <button className="dark-toggle" onClick={onToggleDark} title="Toggle dark mode">
             {darkMode ? <FiSun size={18} /> : <FiMoon size={18} />}
             {darkMode ? 'Light' : 'Dark'}
@@ -60,7 +60,7 @@ function DashboardHeader({
           <h4>Risk Score</h4>
           <h2>{riskScore}/100</h2>
           <p>
-            {riskScore >= 70 ? '🔴 High Risk' : riskScore >= 40 ? '🟠 Medium Risk' : '🟢 Low Risk'}
+            {riskScore >= 70 ? 'High Risk' : riskScore >= 40 ? 'Medium Risk' : 'Low Risk'}
           </p>
           {riskScore >= 70 && <p>High spending detected. Reduce non-essential expenses.</p>}
         </div>

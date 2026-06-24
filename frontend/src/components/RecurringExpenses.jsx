@@ -87,10 +87,10 @@ export default function RecurringExpenses({ token }) {
 
   return (
     <div className="panel">
-      <div className="panel-heading">
+      <div className="panel-heading compact">
         <div>
           <h2><FiRepeat style={{ marginRight: 6 }} />Recurring Expenses</h2>
-          <p className="panel-subtitle">EMIs, rent, subscriptions — added automatically every cycle</p>
+          <p className="panel-subtitle">EMIs, rent, and subscriptions added automatically every cycle.</p>
         </div>
         <button onClick={() => setShowForm((prev) => !prev)}>
           <FiPlus /> {showForm ? 'Cancel' : 'Add Recurring'}
@@ -153,7 +153,7 @@ export default function RecurringExpenses({ token }) {
             />
           )}
 
-          {/* End date section — explicit choice between a fixed end date
+          {/* End date section - explicit choice between a fixed end date
               (for EMIs with a known tenure) or no end date at all
               (for things like rent that just continue indefinitely). */}
           <div
@@ -192,7 +192,7 @@ export default function RecurringExpenses({ token }) {
               </div>
             ) : (
               <p style={{ fontSize: 12, color: 'var(--muted)', margin: 0 }}>
-                No end date — this will keep repeating every {form.frequency} cycle until you pause or delete it.
+                No end date - this will keep repeating every {form.frequency} cycle until you pause or delete it.
                 Use this for things like rent or subscriptions with no fixed end.
               </p>
             )}
@@ -210,7 +210,7 @@ export default function RecurringExpenses({ token }) {
           <FiRepeat size={32} style={{ color: 'var(--muted)', marginBottom: 8 }} />
           <p style={{ fontWeight: 600, marginBottom: 6 }}>No recurring expenses set up yet</p>
           <p className="muted" style={{ maxWidth: 420, margin: '0 auto', lineHeight: 1.6 }}>
-            Use this for anything that repeats automatically — like a home loan EMI, monthly
+            Use this for anything that repeats automatically, like a home loan EMI, monthly
             rent, or a Netflix subscription. Once added, it gets logged as a real expense on
             its due date every cycle, without you having to enter it manually. EMIs can have
             a fixed end date; rent and subscriptions can repeat with no end date at all.
@@ -223,19 +223,19 @@ export default function RecurringExpenses({ token }) {
               <div>
                 <strong>{item.title}</strong>
                 <span>
-                  {item.category} • {item.frequency}
+                  {item.category} - {item.frequency}
                   {item.frequency !== 'weekly' ? ` (day ${item.day_of_month})` : ''}
                   {item.end_date ? (
                     <>
-                      {' '}• <FiCalendar style={{ verticalAlign: 'middle' }} /> ends {item.end_date}
+                      {' '} - <FiCalendar style={{ verticalAlign: 'middle' }} /> ends {item.end_date}
                     </>
                   ) : (
-                    <> • no end date</>
+                    <> - no end date</>
                   )}
                 </span>
               </div>
               <div className="expense-actions">
-                <b>₹{Number(item.amount).toFixed(2)}</b>
+                <b>Rs. {Number(item.amount).toFixed(2)}</b>
                 <span
                   className={`status-badge ${
                     item.is_expired ? 'danger' : item.is_active ? 'safe' : 'warning'
