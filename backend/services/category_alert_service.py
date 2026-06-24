@@ -23,7 +23,6 @@ from database.db import db
 THRESHOLD_TIERS = [
     (100, "exceeded", "alert_100_sent"),
     (90, "critical", "alert_90_sent"),
-    (80, "warning", "alert_80_sent"),
     (75, "caution", "alert_75_sent"),
     (50, "notice", "alert_50_sent"),
 ]

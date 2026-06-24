@@ -25,7 +25,6 @@ function ProfileModal({
       [cat.category]: cat.monthly_limit,
     }), {})
   )
-  const [profilePhoto, setProfilePhoto] = useState(null)
   const [photoPreview, setPhotoPreview] = useState(user?.profile_photo || null)
 
   const money = formatAmount || ((amt) => `₹${Number(amt || 0).toLocaleString()}`)
@@ -33,7 +32,6 @@ function ProfileModal({
   const handlePhotoChange = (e) => {
     const file = e.target.files?.[0]
     if (file) {
-      setProfilePhoto(file)
       const reader = new FileReader()
       reader.onload = (event) => {
         setPhotoPreview(event.target?.result)

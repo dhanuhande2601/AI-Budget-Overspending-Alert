@@ -1,10 +1,10 @@
 import threading
+from datetime import datetime
 from flask import Blueprint, request, jsonify, current_app
 from flask_jwt_extended import (jwt_required,get_jwt_identity)
 from database.db import db
 from services.category_alert_service import (check_category_alerts)
 from services.email_service import (send_category_alert)
-from models.budget_notification_model import BudgetNotification
 from models.expense_model import Expense
 from services.backup_service import backup_expenses
 from services.sms_parser import parse_expense_sms
@@ -25,8 +25,12 @@ def async_backup_expenses():
             backup_expenses()
     threading.Thread(target=task, daemon=True).start()
 def get_total_spending(user_id):
-    expenses = Expense.query.filter_by(
-        user_id=user_id
+    now = datetime.now()
+    current_month_start = datetime(now.year, now.month, 1)
+
+    expenses = Expense.query.filter(
+        Expense.user_id == user_id,
+        Expense.created_at >= current_month_start
     ).all()
     total = 0
     for expense in expenses:
@@ -47,6 +51,92 @@ def create_expense(user_id, title, amount, category, payment_method):
     async_backup_expenses()
 
     return new_expense
+
+
+BUDGET_ALERT_THRESHOLDS = [
+    (100, "budget_alert_100_sent"),
+    (90, "budget_alert_90_sent"),
+    (75, "budget_alert_75_sent"),
+    (50, "budget_alert_50_sent"),
+]
+
+
+def _build_budget_sms_text(threshold, spent, budget):
+    remaining = max(round(budget - spent), 0)
+    spent_amount = round(spent)
+    budget_amount = round(budget)
+
+    if threshold >= 100:
+        exceeded_by = max(round(spent - budget), 0)
+        return (
+            "Budget Alert - 100% Used\n"
+            f"Budget: Rs. {budget_amount}\n"
+            f"Spent: Rs. {spent_amount}\n"
+            f"Remaining: Rs. 0\n"
+            f"Exceeded by: Rs. {exceeded_by}"
+        )
+
+    return (
+        f"Budget Alert - {threshold}% Used\n"
+        f"Budget: Rs. {budget_amount}\n"
+        f"Spent: Rs. {spent_amount}\n"
+        f"Remaining: Rs. {remaining}"
+    )
+
+
+def _mark_reached_budget_alerts_sent(user, threshold):
+    for reached_threshold, flag_attr in BUDGET_ALERT_THRESHOLDS:
+        if reached_threshold <= threshold:
+            setattr(user, flag_attr, True)
+
+
+def _send_overall_budget_alerts(user, total_spending):
+    monthly_budget = float(user.available_budget or 0)
+    if monthly_budget <= 0:
+        return
+
+    percentage = (total_spending / monthly_budget) * 100
+
+    for threshold, flag_attr in BUDGET_ALERT_THRESHOLDS:
+        if percentage < threshold or getattr(user, flag_attr):
+            continue
+
+        sent_any_channel = False
+
+        if user.email:
+            try:
+                send_budget_alert(
+                    user.email,
+                    threshold,
+                    total_spending,
+                    monthly_budget
+                )
+                sent_any_channel = True
+            except Exception as error:
+                print("Budget email sending failed:", error)
+
+        if user.phone:
+            try:
+                sms_sid = send_sms(
+                    user.phone,
+                    _build_budget_sms_text(
+                        threshold,
+                        total_spending,
+                        monthly_budget
+                    )
+                )
+                sent_any_channel = sent_any_channel or bool(sms_sid)
+            except Exception as error:
+                print("Budget SMS sending failed:", error)
+
+        if not sent_any_channel:
+            print("Budget alert not marked sent because no channel delivered.")
+            break
+
+        _mark_reached_budget_alerts_sent(user, threshold)
+        db.session.commit()
+        break
+
 
 # =========================================
 # ADD EXPENSE
@@ -219,33 +309,11 @@ def _run_expense_notifications_async(current_user_id, total_spending):
                         except Exception as error:
                             print("SMS sending failed:", error)
 
-                # Overall monthly-budget email alerts (one-time per threshold per cycle)
-                monthly_budget = float(current_user.available_budget or 0)
-                if monthly_budget > 0:
-                    percentage = (total_spending / monthly_budget) * 100
-                    try:
-                        if percentage >= 100 and not current_user.budget_alert_100_sent:
-                            send_budget_alert(current_user.email, 100, total_spending, monthly_budget)
-                            current_user.budget_alert_100_sent = True
-                            db.session.commit()
-
-                        elif percentage >= 90 and not current_user.budget_alert_90_sent:
-                            send_budget_alert(current_user.email, 90, total_spending, monthly_budget)
-                            current_user.budget_alert_90_sent = True
-                            db.session.commit()
-
-                        elif percentage >= 75 and not current_user.budget_alert_75_sent:
-                            send_budget_alert(current_user.email, percentage, total_spending, monthly_budget)
-                            current_user.budget_alert_75_sent = True
-                            db.session.commit()
-
-                        elif percentage >= 50 and not current_user.budget_alert_50_sent:
-                            send_budget_alert(current_user.email, percentage, total_spending, monthly_budget)
-                            current_user.budget_alert_50_sent = True
-                            db.session.commit()
-
-                    except Exception as error:
-                        print("Budget email sending failed:", error)
+                # Overall monthly-budget alerts (email + SMS), one time per threshold.
+                try:
+                    _send_overall_budget_alerts(current_user, total_spending)
+                except Exception as error:
+                    print("Budget alert sending failed:", error)
 
             except Exception as error:
                 print("Background notification task failed:", error)
@@ -517,6 +585,8 @@ def add_sms_expense():
     total_spending = get_total_spending(
         current_user_id
     )
+
+    _run_expense_notifications_async(current_user_id, total_spending)
 
     return jsonify({
 

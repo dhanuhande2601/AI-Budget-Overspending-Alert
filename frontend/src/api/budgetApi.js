@@ -226,7 +226,7 @@ export async function getCategoryAlerts(
   )
 }
  
-export async function getCategoryBudgetAlerts() {
+export async function getCategoryBudgetAlerts(token) {
   return apiRequest('/category-budget/alerts', {
     method: 'GET',
     headers: getAuthHeaders(token)

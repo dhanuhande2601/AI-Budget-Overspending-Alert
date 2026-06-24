@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { FiCalendar, FiPause, FiPlay, FiPlus, FiRepeat, FiTrash2 } from 'react-icons/fi'
 import {
   getRecurringExpenses,
@@ -27,18 +27,19 @@ export default function RecurringExpenses({ token }) {
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState('')
 
-  useEffect(() => {
-    loadItems()
-  }, [token])
-
-  async function loadItems() {
+  const loadItems = useCallback(async () => {
     try {
       const data = await getRecurringExpenses(token)
       setItems(Array.isArray(data) ? data : [])
     } catch (error) {
       console.log(error)
     }
-  }
+  }, [token])
+
+  useEffect(() => {
+    const timeoutId = window.setTimeout(loadItems, 0)
+    return () => window.clearTimeout(timeoutId)
+  }, [loadItems])
 
   function updateForm(field, value) {
     setForm((prev) => ({ ...prev, [field]: value }))

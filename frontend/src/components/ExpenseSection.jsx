@@ -15,34 +15,36 @@ function ExpenseSection({
   onSearchChange,
   onSubmit,
   onStartEdit,
+  onVoiceExpense,
   searchTerm,
 }) {
   const [showExpenses, setShowExpenses] = useState(false)
   const [isListening, setIsListening] = useState(false)
 
-  const SpeechRecognition =
-    window.SpeechRecognition || window.webkitSpeechRecognition
-
-  const recognition = SpeechRecognition ? new SpeechRecognition() : null
-
-  if (recognition) {
-    recognition.continuous = false
-    recognition.lang = 'en-US'
+  const extractAmount = (text) => {
+    const match = text.match(/(?:rs\.?|rupees?|inr)?\s*([0-9][0-9,]*(?:\.[0-9]{1,2})?)/i)
+    return match ? match[1].replace(/,/g, '') : ''
   }
 
   const startListening = () => {
+    const SpeechRecognition =
+      window.SpeechRecognition || window.webkitSpeechRecognition
+    const recognition = SpeechRecognition ? new SpeechRecognition() : null
+
     if (!recognition) {
       alert('Speech Recognition is not supported in this browser. Please use Chrome.')
       return
     }
+
+    recognition.continuous = false
+    recognition.lang = 'en-US'
 
     recognition.onresult = (event) => {
       const text = event.results[0][0].transcript
       console.log('VOICE =', text)
 
       const lower = text.toLowerCase()
-      const amountMatch = text.match(/\d+/)
-      const amount = amountMatch ? amountMatch[0] : ''
+      const amount = extractAmount(text)
 
       const categoryKeywords = {
         Food: ['swiggy', 'zomato', 'restaurant', 'cafe', 'food', 'pizza', 'hotel'],
@@ -88,7 +90,8 @@ function ExpenseSection({
       }
 
       const title = text
-        .replace(/\d+/g, '')
+        .replace(/(?:rs\.?|rupees?|inr)?\s*[0-9][0-9,]*(?:\.[0-9]{1,2})?/gi, '')
+        .replace(/rs\.?|rupees?|inr/gi, '')
         .replace(/gpay|phonepe|paytm|upi|credit card|debit card/gi, '')
         .trim()
 
@@ -96,6 +99,22 @@ function ExpenseSection({
       onExpenseFormChange('amount', amount)
       onExpenseFormChange('category', category)
       onExpenseFormChange('payment_method', paymentMethod)
+
+      if (!amount || !category) {
+        alert('I heard the expense, but could not detect amount or category. Please say something like "Swiggy 250 UPI".')
+        return
+      }
+
+      if (editingExpenseId) {
+        return
+      }
+
+      onVoiceExpense?.({
+        title: title || `${category} expense`,
+        amount,
+        category,
+        payment_method: paymentMethod,
+      })
 
       console.log('Amount =', amount)
       console.log('Category =', category)
@@ -111,7 +130,6 @@ function ExpenseSection({
     }
 
     recognition.onerror = (event) => {
-      console.error('Speech recognition error:', event.error)
       setIsListening(false)
 
       // "no-speech" and "aborted" are normal, expected outcomes (the mic
@@ -120,6 +138,8 @@ function ExpenseSection({
       if (event.error === 'no-speech' || event.error === 'aborted') {
         return
       }
+
+      console.error('Speech recognition error:', event.error)
 
       const friendlyMessages = {
         'not-allowed': 'Microphone access was blocked. Please allow microphone permission in your browser settings.',
@@ -145,7 +165,7 @@ function ExpenseSection({
           type="button"
           className="voice-btn"
           onClick={startListening}
-          disabled={isListening}
+          disabled={isListening || loading}
         >
           {isListening ? '🎙️ Listening... speak now' : '🎤 Voice Expense'}
         </button>

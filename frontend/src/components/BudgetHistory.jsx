@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import {
   BarChart, Bar, LineChart, Line, XAxis, YAxis,
   CartesianGrid, Tooltip, Legend, ResponsiveContainer
@@ -13,11 +13,7 @@ export default function BudgetHistory({ token }) {
   const [refreshing, setRefreshing] = useState(false)
   const [chartType, setChartType] = useState('bar')
 
-  useEffect(() => {
-    loadData()
-  }, [token])
-
-  async function loadData() {
+  const loadData = useCallback(async () => {
     setLoading(true)
     try {
       const [historyData, summaryData] = await Promise.all([
@@ -28,9 +24,15 @@ export default function BudgetHistory({ token }) {
       setSummary(summaryData)
     } catch (error) {
       console.log('Budget history load error:', error)
+    } finally {
+      setLoading(false)
     }
-    setLoading(false)
-  }
+  }, [token])
+
+  useEffect(() => {
+    const timeoutId = window.setTimeout(loadData, 0)
+    return () => window.clearTimeout(timeoutId)
+  }, [loadData])
 
   async function handleReload() {
     setRefreshing(true)

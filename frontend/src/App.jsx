@@ -6,13 +6,10 @@ import {
   fetchDashboardData,
   getAuthHeaders,
   getCategoryBudgets,
-  updateMonthlyBudget,
   updateIncomeSavings,
   updateProfile,
   getCategoryAlerts,
   getLatestExpenses,
-  setCategoryBudgets,
-  getRecommendations,
   getCategoryPredictions,
 } from './api/budgetApi'
 
@@ -101,10 +98,6 @@ function App() {
   const [categoryFilter, setCategoryFilter] = useState('')
   const [showCategoryBudget, setShowCategoryBudget] = useState(false)
   const [showProfile, setShowProfile] = useState(false)
-  const [newBudget, setNewBudget] = useState('')
-  const [newIncome, setNewIncome] = useState('')
-  const [newSavings, setNewSavings] = useState('')
-  const [recommendations, setRecommendations] = useState(null)
   const [categoryPredictions, setCategoryPredictions] = useState(null)
   const [categoryBudgets, setCategoryBudgetsState] = useState([])
   const [categoryAlerts, setCategoryAlerts] = useState([])
@@ -197,7 +190,6 @@ function App() {
 
   const totalSpending = Number(analytics?.total_spending || 0)
   const monthlyBudget = Number(user?.available_budget || user?.monthly_budget || 0)
-  const pieData = analytics?.category_summary || []
   const hasBudget = monthlyBudget > 0
   const isBudgetExceeded = hasBudget && totalSpending > monthlyBudget
   const isBudgetWarning = hasBudget && !isBudgetExceeded && totalSpending >= monthlyBudget * 0.8
@@ -217,11 +209,7 @@ function App() {
       const data = await fetchDashboardData(token)
       updateDashboard(data)
 
-      const [recoData, predData] = await Promise.all([
-        getRecommendations(token).catch(() => null),
-        getCategoryPredictions(token).catch(() => null),
-      ])
-      setRecommendations(recoData)
+      const predData = await getCategoryPredictions(token).catch(() => null)
       setCategoryPredictions(predData)
     } catch (error) {
       console.log('Dashboard refresh error:', error)
@@ -356,32 +344,6 @@ function App() {
     }
   }
 
-  const handleUpdateSavings = async (amount) => {
-    try {
-      const response = await apiRequest('/auth/update-budget', {
-        method: 'PUT',
-        headers: authHeaders,
-        body: JSON.stringify({ monthly_savings: Number(amount) }),
-      })
-      if (response?.success) {
-        await refreshDashboard()
-      }
-    } catch (error) {
-      console.error('Savings update failed:', error)
-    }
-  }
-
-  async function handleUpdateIncome() {
-    try {
-      await updateIncomeSavings(token, { monthly_income: Number(newIncome) })
-      setMessage('Monthly income updated successfully')
-      setNewIncome('')
-      await refreshDashboard()
-    } catch (error) {
-      setMessage(error.message)
-    }
-  }
-
   async function handleUpdateProfile(profileData) {
     try {
       await updateProfile(token, {
@@ -423,23 +385,12 @@ function App() {
     setShowProfile(true)
   }
 
-  async function handleBudgetUpdate() {
-    try {
-      await updateMonthlyBudget(token, Number(newBudget))
-      await refreshDashboard()
-      setMessage('Budget updated successfully')
-      setNewBudget('')
-    } catch (error) {
-      setMessage(error.message)
-    }
-  }
-
-  async function handleSaveExpense(event) {
-    event.preventDefault()
+  async function saveExpense(payloadOverride = null) {
     setLoading(true)
     setMessage('')
     try {
-      const payload = { ...expenseForm, amount: Number(expenseForm.amount) }
+      const source = payloadOverride || expenseForm
+      const payload = { ...source, amount: Number(source.amount) }
       const path = editingExpenseId
         ? `/expense/update/${editingExpenseId}`
         : '/expense/add'
@@ -460,6 +411,20 @@ function App() {
     } finally {
       setLoading(false)
     }
+  }
+
+  async function handleSaveExpense(event) {
+    event.preventDefault()
+    await saveExpense()
+  }
+
+  async function handleVoiceExpense(expenseData) {
+    if (editingExpenseId) {
+      setMessage('Voice filled the form. Click Update Expense to save changes.')
+      return
+    }
+
+    await saveExpense(expenseData)
   }
 
   async function handleDeleteExpense(expenseId) {
@@ -574,6 +539,7 @@ function App() {
           onSearchChange={setSearchTerm}
           onStartEdit={startEditingExpense}
           onSubmit={handleSaveExpense}
+          onVoiceExpense={handleVoiceExpense}
           searchTerm={searchTerm}
         />
 
