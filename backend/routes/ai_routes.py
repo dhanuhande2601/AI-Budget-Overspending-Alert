@@ -1,4 +1,3 @@
-from email.mime import message
 from datetime import date
 import calendar
 from flask import Blueprint, jsonify
@@ -10,6 +9,7 @@ from services.festival_prediction_service import (
     get_upcoming_festival
 )
 from services.openai_service import (
+    generate_ai_coach,
     generate_ai_recommendation,
     generate_investment_suggestion,
 )
@@ -26,6 +26,74 @@ from services.ai_budget_engine import (
 )
 
 ai = Blueprint('ai', __name__)
+
+
+def safe_text(value):
+    if value is None:
+        return ""
+    return str(value).replace("₹", "Rs. ")
+
+
+def current_month_context(user_id):
+    user = User.query.get(user_id)
+    if not user:
+        return None
+
+    today = date.today()
+    days_in_month = calendar.monthrange(today.year, today.month)[1]
+    all_expenses = Expense.query.filter_by(user_id=user_id).all()
+    current_month_expenses = [
+        expense for expense in all_expenses
+        if expense.created_at
+        and expense.created_at.month == today.month
+        and expense.created_at.year == today.year
+    ]
+
+    total_spending = sum(float(expense.amount or 0) for expense in current_month_expenses)
+    monthly_budget = float(user.available_budget or 0)
+    monthly_income = float(user.monthly_income or 0)
+    predicted_spending = predict_month_end_spending(current_month_expenses)
+    remaining_budget = monthly_budget - total_spending
+    projected_overspend = max(predicted_spending - monthly_budget, 0)
+    remaining_days = max(days_in_month - today.day, 1)
+    reduce_per_day = (
+        round(projected_overspend / remaining_days, 2)
+        if projected_overspend > 0 else 0
+    )
+
+    category_summary = {}
+    for expense in current_month_expenses:
+        category = (expense.category or "Other").strip().title()
+        category_summary[category] = category_summary.get(category, 0) + float(expense.amount or 0)
+
+    risk_data = calculate_risk_score(
+        total_spending,
+        monthly_budget,
+        predicted_spending
+    )
+
+    daily_budget = (
+        remaining_budget / remaining_days
+        if remaining_days > 0 else 0
+    )
+
+    return {
+        "user": user,
+        "today": today,
+        "days_in_month": days_in_month,
+        "remaining_days": remaining_days,
+        "expenses": current_month_expenses,
+        "total_spending": total_spending,
+        "monthly_budget": monthly_budget,
+        "monthly_income": monthly_income,
+        "predicted_spending": predicted_spending,
+        "remaining_budget": remaining_budget,
+        "projected_overspend": projected_overspend,
+        "reduce_per_day": reduce_per_day,
+        "category_summary": category_summary,
+        "risk_data": risk_data,
+        "daily_budget": daily_budget,
+    }
 
 
 # =========================================
@@ -206,10 +274,10 @@ def dashboard_analytics():
             festival
         )     
     )
+    ai_recommendation = safe_text(ai_recommendation)
     overspending_alerts_data = detect_overspending(current_user_id)
 
     print("OVESPENDING ALERTS =", overspending_alerts_data)
-    print("AI Recommendation =", ai_recommendation)
     return jsonify({
         "total_spending": float(total_spending),
         "monthly_budget": monthly_budget,
@@ -343,8 +411,7 @@ def monthly_insights():
         formatted_categories,
         festival
     )
-
-    print("MONTHLY AI =", ai_recommendation)
+    ai_recommendation = safe_text(ai_recommendation)
 
     return jsonify({
         "highest_category": highest_category,
@@ -601,3 +668,167 @@ def financial_report():
         "festival": festival,
         "ai_recommendation": ai_recommendation,
     }), 200
+
+
+@ai.route('/forecast', methods=['GET'])
+@jwt_required()
+def ai_forecast():
+    user_id = int(get_jwt_identity())
+    context = current_month_context(user_id)
+    if not context:
+        return jsonify({"message": "User not found"}), 404
+
+    return jsonify({
+        "forecast": round(context["predicted_spending"], 2),
+        "projected_month_end_spending": round(context["predicted_spending"], 2),
+        "overspend": round(context["projected_overspend"], 2),
+        "projected_overspend": round(context["projected_overspend"], 2),
+        "reduce_per_day": round(context["reduce_per_day"], 2),
+        "remaining_days": context["remaining_days"],
+        "remaining_budget": round(context["remaining_budget"], 2),
+        "risk_level": context["risk_data"]["level"],
+    }), 200
+
+
+@ai.route('/score', methods=['GET'])
+@jwt_required()
+def ai_score():
+    user_id = int(get_jwt_identity())
+    context = current_month_context(user_id)
+    if not context:
+        return jsonify({"message": "User not found"}), 404
+
+    return jsonify({
+        "score": context["risk_data"]["score"],
+        "risk_level": context["risk_data"]["level"],
+        "budget_usage_percent": round(
+            (context["total_spending"] / context["monthly_budget"]) * 100,
+            2
+        ) if context["monthly_budget"] > 0 else 0,
+    }), 200
+
+
+@ai.route('/savings-recommendation', methods=['GET'])
+@jwt_required()
+def savings_recommendation():
+    user_id = int(get_jwt_identity())
+    context = current_month_context(user_id)
+    if not context:
+        return jsonify({"message": "User not found"}), 404
+
+    income = context["monthly_income"]
+    remaining_budget = max(context["remaining_budget"], 0)
+    configured_savings = float(context["user"].monthly_savings or 0)
+
+    if context["risk_data"]["level"] == "HIGH":
+        recommended = max(remaining_budget * 0.05, 0)
+    elif configured_savings > 0:
+        recommended = min(configured_savings, remaining_budget * 0.5)
+    elif income > 0:
+        recommended = min(income * 0.1, remaining_budget * 0.4)
+    else:
+        recommended = remaining_budget * 0.15
+
+    return jsonify({
+        "recommended_savings": round(max(recommended, 0), 2),
+        "monthly_savings_target": round(configured_savings, 2),
+        "remaining_budget": round(context["remaining_budget"], 2),
+        "reason": (
+            "Risk is high, so savings recommendation is conservative."
+            if context["risk_data"]["level"] == "HIGH"
+            else "Based on remaining budget and your savings target."
+        ),
+    }), 200
+
+
+@ai.route('/coach', methods=['GET'])
+@jwt_required()
+def ai_coach():
+    user_id = int(get_jwt_identity())
+    context = current_month_context(user_id)
+    if not context:
+        return jsonify({"message": "User not found"}), 404
+
+    coach = generate_ai_coach(
+        total_spending=context["total_spending"],
+        monthly_budget=context["monthly_budget"],
+        predicted_spending=context["predicted_spending"],
+        remaining_budget=context["remaining_budget"],
+        category_summary=context["category_summary"],
+        risk_level=context["risk_data"]["level"],
+    )
+
+    return jsonify({
+        "coach": coach,
+        "metrics": {
+            "total_spending": round(context["total_spending"], 2),
+            "monthly_budget": round(context["monthly_budget"], 2),
+            "forecast": round(context["predicted_spending"], 2),
+            "remaining_budget": round(context["remaining_budget"], 2),
+            "risk_level": context["risk_data"]["level"],
+        },
+    }), 200
+
+
+@ai.route('/weekly-challenge', methods=['GET'])
+@jwt_required()
+def weekly_challenge():
+    user_id = int(get_jwt_identity())
+    context = current_month_context(user_id)
+    if not context:
+        return jsonify({"message": "User not found"}), 404
+
+    top_category = None
+    if context["category_summary"]:
+        top_category = max(
+            context["category_summary"],
+            key=context["category_summary"].get
+        )
+
+    challenges = [
+        {
+            "title": "No Food Delivery Monday",
+            "task": "Skip Swiggy/Zomato today and log a home meal instead.",
+            "reward": "Save around Rs. 200",
+        },
+        {
+            "title": "Savings Tuesday",
+            "task": "Move a small fixed amount to savings before spending.",
+            "reward": "Build savings discipline",
+        },
+        {
+            "title": "No Shopping Wednesday",
+            "task": "Avoid impulse shopping for 24 hours.",
+            "reward": "Protect your monthly budget",
+        },
+        {
+            "title": "Tracking Thursday",
+            "task": "Add every expense immediately after payment.",
+            "reward": "Cleaner AI insights",
+        },
+        {
+            "title": "Budget Friday",
+            "task": "Keep today's spending below your daily budget.",
+            "reward": "Stay closer to month-end target",
+        },
+        {
+            "title": "Low-Spend Saturday",
+            "task": "Choose one free or low-cost plan today.",
+            "reward": "Reduce weekend overspending",
+        },
+        {
+            "title": "Finance Sunday",
+            "task": "Review top categories and set next week's spending limit.",
+            "reward": "Better financial planning",
+        },
+    ]
+
+    challenge = challenges[context["today"].weekday()]
+    if top_category:
+        challenge["focus_category"] = top_category
+        challenge["task"] = (
+            f"Control {top_category} spending today. "
+            f"{challenge['task']}"
+        )
+
+    return jsonify(challenge), 200

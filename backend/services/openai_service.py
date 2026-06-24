@@ -10,6 +10,7 @@ client = OpenAI(api_key=Config.OPENAI_API_KEY)
 # are treated as expired and regenerated, so advice doesn't go stale forever.
 _recommendation_cache = {}
 _investment_cache = {}
+_coach_cache = {}
 CACHE_TTL_SECONDS = 60 * 60  # 1 hour
 
 
@@ -106,9 +107,9 @@ Return plain text only.
         print("OpenAI Error:", e)
 
         fallback = (
-            f"You have spent ₹{total_spending:.0f} out of "
-            f"₹{monthly_budget:.0f}. "
-            f"Try to keep daily expenses within ₹{daily_budget:.0f}."
+            f"You have spent Rs. {total_spending:.0f} out of "
+            f"Rs. {monthly_budget:.0f}. "
+            f"Try to keep daily expenses within Rs. {daily_budget:.0f}."
         )
         _set_cached(_recommendation_cache, cache_key, fallback)
         return fallback
@@ -208,4 +209,117 @@ Return ONLY valid JSON, no markdown, no commentary, in this exact shape:
             "suggestions": ["Short-term FD", "Liquid mutual fund"],
         }
         _set_cached(_investment_cache, cache_key, fallback)
+        return fallback
+
+
+def generate_ai_coach(
+    total_spending,
+    monthly_budget,
+    predicted_spending,
+    remaining_budget,
+    category_summary,
+    risk_level,
+):
+    cache_key = (
+        round(float(total_spending or 0), 2),
+        round(float(monthly_budget or 0), 2),
+        round(float(predicted_spending or 0), 2),
+        round(float(remaining_budget or 0), 2),
+        str(risk_level),
+        tuple(sorted((str(k), round(float(v or 0), 2)) for k, v in category_summary.items())),
+    )
+
+    cached = _get_cached(_coach_cache, cache_key)
+    if cached is not None:
+        return cached
+
+    try:
+        prompt = f"""
+You are an AI personal finance coach for a budget tracking app.
+
+Monthly Budget: Rs. {monthly_budget}
+Spent This Month: Rs. {total_spending}
+Predicted Month-End Spending: Rs. {predicted_spending}
+Remaining Budget: Rs. {remaining_budget}
+Risk Level: {risk_level}
+Category Spending: {category_summary}
+
+Return ONLY valid JSON, no markdown, in this exact shape:
+{{
+  "habit": "<one short spending habit detected>",
+  "today_challenge": "<one realistic challenge for today>",
+  "smart_move": "<one practical action>",
+  "daily_goal": "<one daily limit or behavior goal>",
+  "main_problem": "<one biggest issue to fix>"
+}}
+
+Rules:
+- Keep each value under 18 words.
+- Use the exact numbers when useful.
+- Do not invent expenses, salaries, debts, or investment returns.
+- Tone should be motivational and Hinglish-friendly, but professional.
+"""
+
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {
+                    "role": "system",
+                    "content": "You are a concise personal finance coach that returns valid JSON."
+                },
+                {
+                    "role": "user",
+                    "content": prompt
+                }
+            ],
+            max_tokens=220,
+            temperature=0.6,
+        )
+
+        raw = response.choices[0].message.content.strip()
+        raw = raw.replace("```json", "").replace("```", "").strip()
+        parsed = json.loads(raw)
+        result = {
+            "habit": str(parsed.get("habit", ""))[:180],
+            "today_challenge": str(parsed.get("today_challenge", ""))[:180],
+            "smart_move": str(parsed.get("smart_move", ""))[:180],
+            "daily_goal": str(parsed.get("daily_goal", ""))[:180],
+            "main_problem": str(parsed.get("main_problem", ""))[:180],
+        }
+        _set_cached(_coach_cache, cache_key, result)
+        return result
+
+    except Exception as e:
+        print("OpenAI coach error:", e)
+
+        top_category = None
+        if category_summary:
+            top_category = max(category_summary, key=category_summary.get)
+
+        if monthly_budget > 0:
+            usage = (total_spending / monthly_budget) * 100
+        else:
+            usage = 0
+
+        fallback = {
+            "habit": (
+                f"{top_category} is your highest spending area."
+                if top_category else "Start adding expenses daily to reveal patterns."
+            ),
+            "today_challenge": "Keep today's non-essential spending under control.",
+            "smart_move": (
+                "Pause big purchases until your budget is back on track."
+                if usage >= 80 else "Move a small amount to savings before spending."
+            ),
+            "daily_goal": (
+                f"Stay below Rs. {max(remaining_budget / 7, 0):.0f} today."
+                if remaining_budget > 0 else "Avoid new optional spending today."
+            ),
+            "main_problem": (
+                "Projected spending is above budget."
+                if predicted_spending > monthly_budget and monthly_budget > 0
+                else "Budget looks manageable; consistency is the key."
+            ),
+        }
+        _set_cached(_coach_cache, cache_key, fallback)
         return fallback
