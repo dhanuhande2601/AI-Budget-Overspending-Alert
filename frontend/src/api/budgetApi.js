@@ -237,28 +237,6 @@ export async function getCategoryHistory(
   )
 }
 
-export async function transcribeVoiceExpense(token, audioBlob) {
-  const formData = new FormData()
-  formData.append('audio', audioBlob, 'voice-expense.webm')
-
-  return apiRequest('/expense/voice-transcribe', {
-    method: 'POST',
-    headers: getAuthHeaders(token),
-    body: formData,
-  })
-}
-
-export async function addVoiceExpense(token, audioBlob) {
-  const formData = new FormData()
-  formData.append('audio', audioBlob, 'voice-expense.webm')
-
-  return apiRequest('/expense/voice-add', {
-    method: 'POST',
-    headers: getAuthHeaders(token),
-    body: formData,
-  })
-}
- 
 /* =========================
    CATEGORY BUDGETS
 ========================= */

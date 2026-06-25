@@ -407,19 +407,6 @@ function App() {
     await saveExpense()
   }
 
-  async function handleVoiceExpense(expenseData) {
-    if (expenseData?.alreadySaved) {
-      setMessage('Voice expense added successfully')
-      setExpenseForm(emptyExpense)
-      setEditingExpenseId(null)
-      await refreshDashboard()
-      await loadCategoryAlerts()
-      return true
-    }
-
-    return saveExpense(expenseData, { forceCreate: true })
-  }
-
   async function handleDeleteExpense(expenseId) {
     try {
       await apiRequest(`/expense/delete/${expenseId}`, {
@@ -532,9 +519,7 @@ function App() {
             onSearchChange={setSearchTerm}
             onStartEdit={startEditingExpense}
             onSubmit={handleSaveExpense}
-            onVoiceExpense={handleVoiceExpense}
             searchTerm={searchTerm}
-            token={token}
           />
         </div>
 

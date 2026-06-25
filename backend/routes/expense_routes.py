@@ -56,6 +56,159 @@ def _normalize_payment_method(payment_method):
     return payment_method.title() if payment_method else ""
 
 
+def _extract_voice_amount(transcript):
+    lower = (transcript or '').lower().replace('-', ' ')
+
+    number_matches = list(re.finditer(r"([0-9][0-9,]*(?:\.[0-9]{1,2})?)", lower))
+    if number_matches:
+        candidates = []
+        currency_pattern = re.compile(r"(?:rs\.?|rupees?|rupee|inr|₹)")
+
+        for match in number_matches:
+            value = float(match.group(1).replace(',', ''))
+            start, end = match.span()
+            near_currency = (
+                currency_pattern.search(lower[max(0, start - 12):start]) or
+                currency_pattern.search(lower[end:end + 12])
+            )
+            candidates.append((value, bool(near_currency)))
+
+        tagged = [value for value, near_currency in candidates if near_currency]
+        return max(tagged or [value for value, _ in candidates])
+
+    small_numbers = {
+        "zero": 0,
+        "one": 1,
+        "two": 2,
+        "three": 3,
+        "four": 4,
+        "five": 5,
+        "six": 6,
+        "seven": 7,
+        "eight": 8,
+        "nine": 9,
+        "ten": 10,
+        "eleven": 11,
+        "twelve": 12,
+        "thirteen": 13,
+        "fourteen": 14,
+        "fifteen": 15,
+        "sixteen": 16,
+        "seventeen": 17,
+        "eighteen": 18,
+        "nineteen": 19,
+        "ek": 1,
+        "do": 2,
+        "teen": 3,
+        "char": 4,
+        "chaar": 4,
+        "panch": 5,
+        "paanch": 5,
+        "che": 6,
+        "chhe": 6,
+        "saat": 7,
+        "aath": 8,
+        "nau": 9,
+        "das": 10,
+        "gyarah": 11,
+        "barah": 12,
+    }
+    tens = {
+        "twenty": 20,
+        "thirty": 30,
+        "forty": 40,
+        "fifty": 50,
+        "sixty": 60,
+        "seventy": 70,
+        "eighty": 80,
+        "ninety": 90,
+        "bees": 20,
+        "tees": 30,
+        "chaalis": 40,
+        "pachas": 50,
+        "sath": 60,
+        "saath": 60,
+        "sattar": 70,
+        "assi": 80,
+        "nabbe": 90,
+    }
+    multipliers = {
+        "hundred": 100,
+        "sau": 100,
+        "thousand": 1000,
+        "hazar": 1000,
+        "hazaar": 1000,
+    }
+    amount_markers = {
+        "rupee",
+        "rupees",
+        "rs",
+        "inr",
+        "spent",
+        "spend",
+        "paid",
+        "pay",
+        "cost",
+        "costing",
+    }
+
+    words = [
+        re.sub(r"[^a-z]", "", word)
+        for word in lower.split()
+    ]
+    words = [word for word in words if word]
+
+    best_amount = 0
+    current = 0
+    total = 0
+    found = False
+    marker_seen = False
+
+    for word in words:
+        if word == "and" and found:
+            continue
+
+        if word in amount_markers:
+            marker_seen = True
+            if found and total + current > 0:
+                break
+            continue
+
+        if word in small_numbers:
+            current += small_numbers[word]
+            found = True
+            continue
+
+        if word in tens:
+            value = tens[word]
+            current = (current * 100) + value if 0 < current < 10 else current + value
+            found = True
+            continue
+
+        if word in multipliers:
+            multiplier = multipliers[word]
+            current = (current or 1) * multiplier
+            if multiplier >= 1000:
+                total += current
+                current = 0
+            found = True
+            continue
+
+        if found:
+            if marker_seen or word in {"for", "on", "at", "by", "using", "with"}:
+                continue
+            best_amount = max(best_amount, total + current)
+            current = 0
+            total = 0
+            found = False
+            marker_seen = False
+
+    if found:
+        best_amount = max(best_amount, total + current)
+
+    return float(best_amount)
+
+
 def _transcribe_audio_file(audio_file):
     if not openai_client:
         raise RuntimeError("Voice transcription is not configured. OPENAI_API_KEY is missing.")
