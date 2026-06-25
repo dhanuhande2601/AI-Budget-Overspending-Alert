@@ -1,6 +1,7 @@
 from flask import Blueprint
 from flask import request
 from flask import jsonify
+from datetime import datetime
 
 from flask_jwt_extended import (
     jwt_required,
@@ -210,63 +211,92 @@ def category_alerts():
     ).all()
 
     alerts = []
+    now = datetime.now()
+    current_month_start = datetime(now.year, now.month, 1)
+
+    threshold_tiers = [
+        (100, "danger", "budget crossed 100%"),
+        (90, "critical", "budget crossed 90%"),
+        (75, "warning", "budget crossed 75%"),
+        (50, "notice", "budget crossed 50%"),
+    ]
 
     for budget in budgets:
+        budget_category = (
+            budget.category or ""
+        ).strip().title()
 
         expenses = Expense.query.filter(
             Expense.user_id == user_id,
-            db.func.lower(
-                Expense.category
-            ) == budget.category.lower()
+            Expense.created_at >= current_month_start
         ).all()
 
         spent = sum(
-
-            e.amount
+            float(e.amount or 0)
             for e in expenses
-
+            if (e.category or "").strip().title() == budget_category
         )
 
+        budget_limit = float(budget.monthly_limit or 0)
         percentage = 0
 
-        if budget.monthly_limit > 0:
+        if budget_limit > 0:
 
             percentage = (
 
                 spent /
-                budget.monthly_limit
+                budget_limit
 
             ) * 100
 
-        if percentage >= 100:
+        reached_tier = next(
+            (
+                (threshold, level, label)
+                for threshold, level, label in threshold_tiers
+                if percentage >= threshold
+            ),
+            None
+        )
 
-            alerts.append({
+        if not reached_tier:
+            continue
 
-                "category":
-                budget.category,
+        threshold, level, label = reached_tier
+        remaining = max(budget_limit - spent, 0)
 
-                "message":
-                f"{budget.category} budget exceeded",
+        alerts.append({
 
-                "level":
-                "danger"
+            "category":
+            budget_category,
 
-            })
+            "message":
+            (
+                f"{budget_category} {label} "
+                f"({round(percentage, 2)}% used)"
+            ),
 
-        elif percentage >= 80:
+            "level":
+            level,
 
-            alerts.append({
+            "threshold":
+            threshold,
 
-                "category":
-                budget.category,
+            "percent":
+            round(percentage, 2),
 
-                "message":
-                f"{budget.category} budget reached 80%",
+            "spent":
+            round(spent, 2),
 
-                "level":
-                "warning"
+            "budget":
+            budget_limit,
 
-            })
+            "remaining":
+            round(remaining, 2),
+
+            "type":
+            level
+
+        })
 
     return jsonify({
         "alerts": alerts,

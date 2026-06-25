@@ -325,6 +325,7 @@ function App() {
       })
       setMessage('Category budgets saved')
       setShowCategoryBudget(false)
+      await loadCategoryAlerts()
     } catch (error) {
       setMessage(error.message)
     }
@@ -362,6 +363,7 @@ function App() {
       })
       setMessage('Category budgets updated successfully')
       await loadCategoryBudgets()
+      await loadCategoryAlerts()
     } catch (error) {
       setMessage(error.message)
     }

@@ -35,19 +35,24 @@ def send_category_alert(
 
     percent,
 
-    alert_type
+    alert_type,
+
+    threshold=None
 
 ):
 
     subject = (
 
         f"{category} Budget Alert"
+        + (f" - {threshold}% Used" if threshold else "")
 
     )
 
     body = f"""
 
 Category : {category}
+
+Alert Level : {threshold if threshold else round(percent,2)}%
 
 Used : {round(percent,2)}%
 

@@ -9,7 +9,10 @@ from flask_jwt_extended import (jwt_required,get_jwt_identity)
 from openai import OpenAI
 from config import Config
 from database.db import db
-from services.category_alert_service import (check_category_alerts)
+from services.category_alert_service import (
+    check_category_alerts,
+    mark_category_alert_sent,
+)
 from services.email_service import (send_category_alert)
 from models.expense_model import Expense
 from services.backup_service import backup_expenses
@@ -680,6 +683,83 @@ def _run_expense_notifications_async(current_user_id, total_spending):
                 # tier (e.g. 50%) from spamming an SMS/email on every
                 # single expense added while spending stays in that band.
                 new_alerts = [a for a in alerts if a.get("should_notify")]
+
+                delivered_alert_keys = set()
+
+                for alert in new_alerts:
+                    alert_key = (alert["budget_id"], alert["flag_attr"])
+
+                    try:
+                        if current_user.email:
+                            send_category_alert(
+                                current_user.email,
+                                alert["category"],
+                                alert["percent"],
+                                alert["type"],
+                                alert.get("threshold")
+                            )
+                            delivered_alert_keys.add(alert_key)
+                        else:
+                            print("Category email skipped: user email is missing")
+                    except Exception as error:
+                        print("Category email sending failed:", error)
+
+                    try:
+                        if current_user.phone:
+                            category = alert["category"]
+                            budget_amount = round(alert["budget"])
+                            spent_amount = round(alert["spent"])
+                            remaining_amount = round(alert["remaining"])
+                            ai_note = (alert.get("ai_recommendation") or "").strip()
+                            ai_note_short = ai_note.split(".")[0].strip()
+                            if ai_note_short and not ai_note_short.endswith("."):
+                                ai_note_short += "."
+
+                            if alert["percent"] >= 100:
+                                extra_amount = round(alert["spent"] - alert["budget"])
+                                sms_text = (
+                                    f"{category} Budget Alert - {alert['threshold']}% Used\n"
+                                    f"Budget: Rs. {budget_amount}\n"
+                                    f"Spent: Rs. {spent_amount}\n"
+                                    f"Remaining: Rs. 0\n"
+                                    f"You have exceeded by Rs. {extra_amount}"
+                                )
+                            else:
+                                sms_text = (
+                                    f"{category} Budget Alert - {alert['threshold']}% Used\n"
+                                    f"Budget: Rs. {budget_amount}\n"
+                                    f"Spent: Rs. {spent_amount} ({alert['percent']}%)\n"
+                                    f"Remaining: Rs. {remaining_amount}"
+                                )
+
+                            if ai_note_short:
+                                sms_text += f"\nTip: {ai_note_short}"
+
+                            sms_sid = send_sms(current_user.phone, sms_text)
+                            if sms_sid:
+                                delivered_alert_keys.add(alert_key)
+                        else:
+                            print("Category SMS skipped: user phone is missing")
+                    except Exception as error:
+                        print("SMS sending failed:", error)
+
+                for alert in new_alerts:
+                    alert_key = (alert["budget_id"], alert["flag_attr"])
+                    if alert_key in delivered_alert_keys:
+                        mark_category_alert_sent(
+                            alert["budget_id"],
+                            alert["flag_attr"]
+                        )
+                    else:
+                        print(
+                            "Category alert not marked sent because no channel delivered:",
+                            alert["category"],
+                            alert["type"]
+                        )
+
+                # Corrected sender above handled all new alerts. Keep the
+                # older block below inactive to avoid duplicate messages.
+                new_alerts = []
 
                 for alert in new_alerts:
                     try:
