@@ -93,17 +93,31 @@ db.init_app(app)
 mail.init_app(app)
 migrate = Migrate(app, db)
 jwt = JWTManager(app)
- 
+
+def get_cors_origins():
+    configured_origins = []
+
+    for env_name in ("FRONTEND_URL", "CORS_ORIGINS"):
+        configured_origins.extend(
+            origin.strip().rstrip("/")
+            for origin in os.getenv(env_name, "").split(",")
+            if origin.strip()
+        )
+
+    return [
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "https://subtle-crumble-543032.netlify.app",
+        "https://ai-budget-overspending-alert-1.onrender.com",
+        re.compile(r"^https://[a-z0-9-]+--subtle-crumble-543032\.netlify\.app$"),
+        *configured_origins,
+    ]
+
 CORS(
     app,
     resources={
         r"/*": {
-            "origins": [
-                "http://localhost:5173",
-                "http://127.0.0.1:5173",
-                "https://subtle-crumble-543032.netlify.app",
-                re.compile(r"^https://[a-z0-9]+--subtle-crumble-543032\.netlify\.app$")
-            ],
+            "origins": get_cors_origins(),
             "methods": [
                 "GET",
                 "POST",
