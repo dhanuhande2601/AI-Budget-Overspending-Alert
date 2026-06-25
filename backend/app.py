@@ -213,11 +213,11 @@ def ensure_category_budget_columns():
         "monthly_limit": "FLOAT DEFAULT 0",
         "alert_month": "INTEGER",
         "alert_year": "INTEGER",
-        "alert_50_sent": "BOOLEAN DEFAULT 0",
-        "alert_75_sent": "BOOLEAN DEFAULT 0",
-        "alert_80_sent": "BOOLEAN DEFAULT 0",
-        "alert_90_sent": "BOOLEAN DEFAULT 0",
-        "alert_100_sent": "BOOLEAN DEFAULT 0",
+        "alert_50_sent": "BOOLEAN DEFAULT FALSE",
+        "alert_75_sent": "BOOLEAN DEFAULT FALSE",
+        "alert_80_sent": "BOOLEAN DEFAULT FALSE",
+        "alert_90_sent": "BOOLEAN DEFAULT FALSE",
+        "alert_100_sent": "BOOLEAN DEFAULT FALSE",
     }
  
     for column, datatype in required_columns.items():
@@ -251,25 +251,25 @@ def ensure_user_alert_columns():
             "FLOAT DEFAULT 0",
  
         "budget_alert_50_sent":
-            "BOOLEAN DEFAULT 0",
- 
+            "BOOLEAN DEFAULT FALSE",
+
         "budget_alert_75_sent":
-            "BOOLEAN DEFAULT 0",
- 
+            "BOOLEAN DEFAULT FALSE",
+
         "budget_alert_90_sent":
-            "BOOLEAN DEFAULT 0",
- 
+            "BOOLEAN DEFAULT FALSE",
+
         "budget_alert_100_sent":
-            "BOOLEAN DEFAULT 0",
+            "BOOLEAN DEFAULT FALSE",
 
         "sms_alert_enabled":
-            "BOOLEAN DEFAULT 0",
+            "BOOLEAN DEFAULT FALSE",
 
         "email_alert_enabled":
-            "BOOLEAN DEFAULT 1",
+            "BOOLEAN DEFAULT TRUE",
 
         "whatsapp_alert_enabled":
-            "BOOLEAN DEFAULT 0",
+            "BOOLEAN DEFAULT FALSE",
     }
  
     for column, datatype in required_columns.items():

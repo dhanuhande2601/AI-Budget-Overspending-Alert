@@ -54,11 +54,11 @@ print("Existing columns:", existing_columns)
 columns_to_add = {
     "alert_month": "INTEGER",
     "alert_year": "INTEGER",
-    "alert_50_sent": "BOOLEAN DEFAULT 0",
-    "alert_75_sent": "BOOLEAN DEFAULT 0",
-    "alert_80_sent": "BOOLEAN DEFAULT 0",
-    "alert_90_sent": "BOOLEAN DEFAULT 0",
-    "alert_100_sent": "BOOLEAN DEFAULT 0",
+    "alert_50_sent": "BOOLEAN DEFAULT FALSE",
+    "alert_75_sent": "BOOLEAN DEFAULT FALSE",
+    "alert_80_sent": "BOOLEAN DEFAULT FALSE",
+    "alert_90_sent": "BOOLEAN DEFAULT FALSE",
+    "alert_100_sent": "BOOLEAN DEFAULT FALSE",
 }
 
 added = []
