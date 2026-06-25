@@ -22,7 +22,6 @@ function ExpenseSection({
   const [isListening, setIsListening] = useState(false)
   const [voiceStatus, setVoiceStatus] = useState('')
   const recognitionRef = useRef(null)
-  const lastTranscriptRef = useRef('')
 
   const categoryKeywords = {
     Food: [
@@ -179,9 +178,12 @@ function ExpenseSection({
     let paymentMethod = ''
     if (
       lower.includes('upi') ||
+      lower.includes('u p i') ||
+      lower.includes('you pee eye') ||
       lower.includes('gpay') ||
       lower.includes('google pay') ||
       lower.includes('phonepe') ||
+      lower.includes('phone pay') ||
       lower.includes('paytm')
     ) {
       paymentMethod = 'UPI'
@@ -203,8 +205,9 @@ function ExpenseSection({
     const title = cleanText
       .replace(/(?:rs\.?|rupees?|inr)?\s*[0-9][0-9,]*(?:\.[0-9]{1,2})?/gi, '')
       .replace(/rs\.?|rupees?|inr/gi, '')
-      .replace(/gpay|phonepe|paytm|upi|credit card|debit card/gi, '')
-      .replace(/\b(add|expense|spent|paid|payment|for|on|by|using|rupee|rupees)\b/gi, '')
+      .replace(/gpay|google pay|phonepe|phone pay|paytm|upi|u p i|you pee eye|credit card|debit card/gi, '')
+      .replace(/\b(i|add|expense|spend|spent|paid|payment|for|on|by|using|with|rupee|rupees)\b/gi, '')
+      .replace(/\s+/g, ' ')
       .trim()
 
     onExpenseFormChange('title', title)
@@ -238,7 +241,6 @@ function ExpenseSection({
 
   const startListening = () => {
     setVoiceStatus('')
-    lastTranscriptRef.current = ''
 
     const SpeechRecognition =
     window.SpeechRecognition || window.webkitSpeechRecognition
@@ -254,51 +256,24 @@ function ExpenseSection({
     }
 
     recognition.continuous = false
-    recognition.interimResults = true
-    recognition.lang = 'en-US'
-    recognition.maxAlternatives = 5
+    recognition.interimResults = false
+    recognition.lang = 'en-IN'
     recognitionRef.current = recognition
 
     recognition.onresult = async (event) => {
-      const results = Array.from(event.results)
-      const transcripts = results
-        .map((result) => {
-          const alternatives = Array.from(result || [])
-          const bestMatch = alternatives.find((item) => extractAmount(item.transcript)) || alternatives[0]
-          return bestMatch?.transcript || ''
-        })
-        .filter(Boolean)
-
-      const text = transcripts.join(' ').trim()
-      if (text) {
-        lastTranscriptRef.current = text
-        setVoiceStatus(`Heard: ${text}`)
-      }
-
-      const hasFinalResult = results.some((result) => result.isFinal)
-      if (hasFinalResult) {
-        const finalTranscript = lastTranscriptRef.current
-        lastTranscriptRef.current = ''
-        recognition.stop()
-        await saveVoiceExpense(finalTranscript)
-      }
+      const text = event.results?.[0]?.[0]?.transcript || ''
+      await saveVoiceExpense(text)
     }
 
     recognition.onstart = () => {
       setIsListening(true)
-      setVoiceStatus('Listening in English... speak now')
+      setVoiceStatus('Listening... say: "I spend 200 rupees on food by UPI"')
     }
 
-    recognition.onend = async () => {
+    recognition.onend = () => {
       setIsListening(false)
       if (recognitionRef.current === recognition) {
         recognitionRef.current = null
-      }
-
-      if (lastTranscriptRef.current) {
-        const finalTranscript = lastTranscriptRef.current
-        lastTranscriptRef.current = ''
-        await saveVoiceExpense(finalTranscript)
       }
     }
 
@@ -313,7 +288,7 @@ function ExpenseSection({
       }
 
       if (event.error === 'no-speech') {
-        setVoiceStatus('No speech detected. Say: "Swiggy 250 UPI".')
+        setVoiceStatus('Voice was not captured. Click Voice Expense and speak again.')
         return
       }
 
@@ -356,7 +331,7 @@ function ExpenseSection({
           onClick={() => startListening()}
           disabled={isListening || loading}
         >
-          {isListening ? 'Listening in English...' : 'Voice Expense'}
+          {isListening ? 'Listening...' : 'Voice Expense'}
         </button>
         {voiceStatus && <p className="status">{voiceStatus}</p>}
         <div className="expense-input-grid">

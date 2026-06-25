@@ -9,7 +9,6 @@ import {
   updateIncomeSavings,
   updateProfile,
   getCategoryAlerts,
-  getLatestExpenses,
   getCategoryPredictions,
 } from './api/budgetApi'
 
@@ -101,7 +100,6 @@ function App() {
   const [categoryPredictions, setCategoryPredictions] = useState(null)
   const [categoryBudgets, setCategoryBudgetsState] = useState([])
   const [categoryAlerts, setCategoryAlerts] = useState([])
-  const [latestExpenses, setLatestExpenses] = useState([])
   const [categoryBudgetForm, setCategoryBudgetForm] = useState({
     food: '',
     travel: '',
@@ -252,17 +250,6 @@ function App() {
     }
   }, [token])
 
-  const loadLatestExpenses = useCallback(async () => {
-    try {
-      const data = await getLatestExpenses(token)
-      setLatestExpenses(
-        Array.isArray(data) ? data : data?.expenses || []
-      )
-    } catch (error) {
-      console.log(error)
-    }
-  }, [token])
-
   useEffect(() => {
     if (!token) return
     let isCurrent = true
@@ -273,7 +260,6 @@ function App() {
         if (!isCurrent) return
         await Promise.all([
           loadCategoryBudgets(),
-          loadLatestExpenses(),
           loadCategoryAlerts(),
         ])
       } catch (error) {
@@ -283,7 +269,7 @@ function App() {
 
     initializeData()
     return () => { isCurrent = false }
-  }, [token, refreshDashboard, loadCategoryBudgets, loadLatestExpenses, loadCategoryAlerts])
+  }, [token, refreshDashboard, loadCategoryBudgets, loadCategoryAlerts])
 
   function updateAuthForm(field, value) {
     setAuthForm((currentForm) => ({ ...currentForm, [field]: value }))
@@ -406,7 +392,6 @@ function App() {
       setExpenseForm(emptyExpense)
       setEditingExpenseId(null)
       await refreshDashboard()
-      await loadLatestExpenses()
       await loadCategoryAlerts()
       return true
     } catch (error) {
@@ -433,7 +418,6 @@ function App() {
         headers: authHeaders,
       })
       await refreshDashboard()
-      await loadLatestExpenses()
       await loadCategoryAlerts()
       setMessage('Expense deleted successfully')
     } catch (error) {
@@ -542,7 +526,22 @@ function App() {
             onVoiceExpense={handleVoiceExpense}
             searchTerm={searchTerm}
           />
+        </div>
 
+        <aside className="workspace-side">
+          <RecurringExpenses token={token} />
+
+          {categoryPredictions && (
+            <CategoryPredictionsChart data={categoryPredictions} />
+          )}
+        </aside>
+
+        <LatestExpensesByCategory
+          data={expenses}
+          alerts={categoryAlerts}
+        />
+
+        <div className="workspace-main workspace-full">
           <AlertsTrendSection
             alerts={(() => {
               const richAlerts = Array.isArray(categoryAlerts)
@@ -568,26 +567,14 @@ function App() {
 
           <BudgetHistory token={token} />
 
-          <FinancialIntelligenceReport token={token} />
+          <div className="financial-ai-grid">
+            <AICoachPanel
+              formatAmount={formatAmount}
+              token={token}
+            />
+            <FinancialIntelligenceReport token={token} />
+          </div>
         </div>
-
-        <aside className="workspace-side">
-          <AICoachPanel
-            formatAmount={formatAmount}
-            token={token}
-          />
-
-          <RecurringExpenses token={token} />
-
-          {categoryPredictions && (
-            <CategoryPredictionsChart data={categoryPredictions} />
-          )}
-
-          <LatestExpensesByCategory
-            data={latestExpenses}
-            alerts={categoryAlerts}
-          />
-        </aside>
       </section>
 
       {showProfile && (

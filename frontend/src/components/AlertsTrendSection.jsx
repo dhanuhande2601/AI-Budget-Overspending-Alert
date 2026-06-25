@@ -40,7 +40,7 @@ function AlertsTrendSection({
   const xAxisKey = trendView === 'monthly' ? 'month' : 'week'
 
   return (
-    <div className="panel">
+    <div className="panel overspending-panel">
       <div className="panel-heading">
         <div>
           <h2>Overspending Monitor</h2>
