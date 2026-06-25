@@ -409,6 +409,34 @@ function App() {
     await saveExpense()
   }
 
+  async function handleVoiceExpenseAdd(audioBlob, filename) {
+    setLoading(true)
+    setMessage('')
+
+    try {
+      const formData = new FormData()
+      formData.append('audio', audioBlob, filename)
+
+      const data = await apiRequest('/expense/voice-add', {
+        method: 'POST',
+        headers: authHeaders,
+        body: formData,
+      })
+
+      setMessage(data?.message || 'Voice expense added successfully')
+      setExpenseForm(emptyExpense)
+      setEditingExpenseId(null)
+      await refreshDashboard()
+      await loadCategoryAlerts()
+      return true
+    } catch (error) {
+      setMessage(error.message)
+      return false
+    } finally {
+      setLoading(false)
+    }
+  }
+
   async function handleDeleteExpense(expenseId) {
     try {
       await apiRequest(`/expense/delete/${expenseId}`, {
@@ -521,6 +549,8 @@ function App() {
             onSearchChange={setSearchTerm}
             onStartEdit={startEditingExpense}
             onSubmit={handleSaveExpense}
+            onVoiceError={setMessage}
+            onVoiceExpenseAdd={handleVoiceExpenseAdd}
             searchTerm={searchTerm}
           />
         </div>

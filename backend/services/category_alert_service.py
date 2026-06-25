@@ -4,6 +4,7 @@ from database.db import db
 from models.budget_notification_model import BudgetNotification
 from models.category_budget_model import CategoryBudget
 from models.expense_model import Expense
+from models.user_model import User
 from services.festival_prediction_service import get_upcoming_festival
 from services.openai_recommendation_service import get_ai_recommendation
 
@@ -17,6 +18,23 @@ THRESHOLD_TIERS = [
 ]
 
 ALERT_FLAGS = {flag for _, _, flag in THRESHOLD_TIERS}
+EMAIL_ALERT_FLAGS = {
+    flag.replace("_sent", "_email_sent")
+    for flag in ALERT_FLAGS
+}
+SMS_ALERT_FLAGS = {
+    flag.replace("_sent", "_sms_sent")
+    for flag in ALERT_FLAGS
+}
+CHANNEL_ALERT_FLAGS = EMAIL_ALERT_FLAGS | SMS_ALERT_FLAGS
+
+
+def _email_flag(flag_attr):
+    return flag_attr.replace("_sent", "_email_sent")
+
+
+def _sms_flag(flag_attr):
+    return flag_attr.replace("_sent", "_sms_sent")
 
 
 def _reset_flags_if_new_month(budget, now):
@@ -26,7 +44,7 @@ def _reset_flags_if_new_month(budget, now):
 
     budget.alert_month = now.month
     budget.alert_year = now.year
-    for flag in ALERT_FLAGS:
+    for flag in ALERT_FLAGS | CHANNEL_ALERT_FLAGS:
         setattr(budget, flag, False)
 
     # Kept for older databases that already have this unused 80% column.
@@ -59,6 +77,10 @@ def _build_alert_payload(
     ai_text,
     festival_message,
     should_notify,
+    should_email,
+    should_sms,
+    email_flag_attr,
+    sms_flag_attr,
 ):
     return {
         "category": budget.category,
@@ -73,7 +95,11 @@ def _build_alert_payload(
         "ai_recommendation": ai_text,
         "festival_prediction": festival_message,
         "should_notify": should_notify,
+        "should_email": should_email,
+        "should_sms": should_sms,
         "flag_attr": flag_attr,
+        "email_flag_attr": email_flag_attr,
+        "sms_flag_attr": sms_flag_attr,
         "budget_id": budget.id,
     }
 
@@ -90,6 +116,7 @@ def check_category_alerts(user_id):
     alerts = []
     current_month_start = datetime(now.year, now.month, 1)
 
+    user = User.query.get(user_id)
     budgets = CategoryBudget.query.filter_by(user_id=user_id).all()
 
     expenses = Expense.query.filter(
@@ -152,7 +179,24 @@ def check_category_alerts(user_id):
         added_unsent_alert = False
 
         for threshold, alert_type, flag_attr in reached_tiers:
-            should_notify = not bool(getattr(budget, flag_attr))
+            email_flag_attr = _email_flag(flag_attr)
+            sms_flag_attr = _sms_flag(flag_attr)
+            legacy_sent = bool(getattr(budget, flag_attr))
+
+            # If this threshold was already marked by the older combined
+            # flag, assume email was handled to avoid duplicate emails after
+            # deploy. SMS still gets its own retry path because the old flag
+            # could have been set even when Twilio failed.
+            email_already_sent = (
+                bool(getattr(budget, email_flag_attr))
+                or legacy_sent
+            )
+            sms_already_sent = bool(getattr(budget, sms_flag_attr))
+
+            should_email = bool(user and user.email and not email_already_sent)
+            should_sms = bool(user and user.phone and not sms_already_sent)
+            should_notify = should_email or should_sms
+
             if not should_notify:
                 continue
 
@@ -179,6 +223,10 @@ def check_category_alerts(user_id):
                 ai_text,
                 festival_message,
                 True,
+                should_email,
+                should_sms,
+                email_flag_attr,
+                sms_flag_attr,
             ))
 
             existing = BudgetNotification.query.filter_by(
@@ -197,6 +245,14 @@ def check_category_alerts(user_id):
 
         if not added_unsent_alert:
             threshold, alert_type, flag_attr = reached_tiers[-1]
+            email_flag_attr = _email_flag(flag_attr)
+            sms_flag_attr = _sms_flag(flag_attr)
+            legacy_sent = bool(getattr(budget, flag_attr))
+            email_already_sent = (
+                bool(getattr(budget, email_flag_attr))
+                or legacy_sent
+            )
+            sms_already_sent = bool(getattr(budget, sms_flag_attr))
             message = _build_alert_message(
                 budget_category,
                 threshold,
@@ -219,6 +275,10 @@ def check_category_alerts(user_id):
                 ai_text,
                 festival_message,
                 False,
+                False,
+                False,
+                email_flag_attr,
+                sms_flag_attr,
             ))
 
     db.session.commit()
@@ -229,7 +289,7 @@ def check_category_alerts(user_id):
 
 
 def mark_category_alert_sent(budget_id, flag_attr):
-    if flag_attr not in ALERT_FLAGS:
+    if flag_attr not in ALERT_FLAGS | CHANNEL_ALERT_FLAGS:
         return
 
     budget = CategoryBudget.query.get(budget_id)

@@ -218,6 +218,14 @@ def ensure_category_budget_columns():
         "alert_80_sent": "BOOLEAN DEFAULT FALSE",
         "alert_90_sent": "BOOLEAN DEFAULT FALSE",
         "alert_100_sent": "BOOLEAN DEFAULT FALSE",
+        "alert_50_email_sent": "BOOLEAN DEFAULT FALSE",
+        "alert_75_email_sent": "BOOLEAN DEFAULT FALSE",
+        "alert_90_email_sent": "BOOLEAN DEFAULT FALSE",
+        "alert_100_email_sent": "BOOLEAN DEFAULT FALSE",
+        "alert_50_sms_sent": "BOOLEAN DEFAULT FALSE",
+        "alert_75_sms_sent": "BOOLEAN DEFAULT FALSE",
+        "alert_90_sms_sent": "BOOLEAN DEFAULT FALSE",
+        "alert_100_sms_sent": "BOOLEAN DEFAULT FALSE",
     }
  
     for column, datatype in required_columns.items():
@@ -260,6 +268,30 @@ def ensure_user_alert_columns():
             "BOOLEAN DEFAULT FALSE",
 
         "budget_alert_100_sent":
+            "BOOLEAN DEFAULT FALSE",
+
+        "budget_alert_50_email_sent":
+            "BOOLEAN DEFAULT FALSE",
+
+        "budget_alert_75_email_sent":
+            "BOOLEAN DEFAULT FALSE",
+
+        "budget_alert_90_email_sent":
+            "BOOLEAN DEFAULT FALSE",
+
+        "budget_alert_100_email_sent":
+            "BOOLEAN DEFAULT FALSE",
+
+        "budget_alert_50_sms_sent":
+            "BOOLEAN DEFAULT FALSE",
+
+        "budget_alert_75_sms_sent":
+            "BOOLEAN DEFAULT FALSE",
+
+        "budget_alert_90_sms_sent":
+            "BOOLEAN DEFAULT FALSE",
+
+        "budget_alert_100_sms_sent":
             "BOOLEAN DEFAULT FALSE",
 
         "sms_alert_enabled":

@@ -3,7 +3,19 @@ from flask_mail import Message
 from extensions import mail
 
 
+def _format_money(amount):
+    try:
+        value = float(amount or 0)
+    except (TypeError, ValueError):
+        value = 0
+
+    return f"Rs. {value:,.2f}"
+
+
 def send_budget_alert(recipient, percentage, spent, budget):
+    remaining = max(float(budget or 0) - float(spent or 0), 0)
+    exceeded_by = max(float(spent or 0) - float(budget or 0), 0)
+
     msg = Message(
         subject=f"Budget Alert - {percentage}% Used",
         recipients=[recipient]
@@ -14,8 +26,10 @@ Budget Warning
 
 You have used {percentage}% of your monthly budget.
 
-Budget: Rs. {budget}
-Spent: Rs. {spent}
+Budget: {_format_money(budget)}
+Spent: {_format_money(spent)}
+Remaining: {_format_money(remaining)}
+{f"Exceeded By: {_format_money(exceeded_by)}" if exceeded_by > 0 else ""}
 
 Please control your expenses.
 """
@@ -37,7 +51,13 @@ def send_category_alert(
 
     alert_type,
 
-    threshold=None
+    threshold=None,
+
+    spent=None,
+
+    budget=None,
+
+    remaining=None
 
 ):
 
@@ -53,6 +73,12 @@ def send_category_alert(
 Category : {category}
 
 Alert Level : {threshold if threshold else round(percent,2)}%
+
+Budget : {_format_money(budget)}
+
+Spent : {_format_money(spent)}
+
+Remaining : {_format_money(remaining)}
 
 Used : {round(percent,2)}%
 

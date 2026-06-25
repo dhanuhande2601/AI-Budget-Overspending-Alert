@@ -4,17 +4,22 @@ from models.recurring_expense_model import RecurringExpense
 from models.expense_model import Expense
 
 
-def process_due_recurring_expenses(app):
+def process_due_recurring_expenses(app, user_id=None):
     """
     Checks all active recurring expenses and auto-creates a real
     Expense entry for any that are due today and haven't already
     been added for this cycle. Also auto-deactivates any recurring
     expense whose end_date (e.g. EMI tenure) has passed.
-    Runs once a day via the scheduler.
+    Runs via the scheduler and also catches up missed cycles after deploy
+    sleep/restarts.
     """
     with app.app_context():
         today = date.today()
-        recurring_items = RecurringExpense.query.filter_by(is_active=True).all()
+        query = RecurringExpense.query.filter_by(is_active=True)
+        if user_id is not None:
+            query = query.filter_by(user_id=user_id)
+
+        recurring_items = query.all()
         created_count = 0
         expired_count = 0
 
@@ -26,7 +31,7 @@ def process_due_recurring_expenses(app):
                 expired_count += 1
                 continue
 
-            if _is_due_today(item, today):
+            if _is_due(item, today):
                 new_expense = Expense(
                     user_id=item.user_id,
                     title=f"{item.title} (Auto)",
@@ -47,13 +52,13 @@ def process_due_recurring_expenses(app):
         )
 
 
-def _is_due_today(item, today):
+def _is_due(item, today):
     # Already added today or this cycle - skip
     if item.last_added_on == today:
         return False
 
     if item.frequency == 'monthly':
-        if today.day != item.day_of_month:
+        if today.day < item.day_of_month:
             return False
         # Avoid double-adding same month if job runs twice
         if item.last_added_on and item.last_added_on.month == today.month and item.last_added_on.year == today.year:
@@ -66,7 +71,7 @@ def _is_due_today(item, today):
         return (today - item.last_added_on) >= timedelta(days=7)
 
     if item.frequency == 'yearly':
-        if today.day != item.day_of_month:
+        if today.day < item.day_of_month:
             return False
         if item.last_added_on and item.last_added_on.year == today.year:
             return False

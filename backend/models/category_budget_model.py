@@ -39,6 +39,14 @@ class CategoryBudget(db.Model):
     alert_80_sent = db.Column(db.Boolean, default=False)
     alert_90_sent = db.Column(db.Boolean, default=False)
     alert_100_sent = db.Column(db.Boolean, default=False)
+    alert_50_email_sent = db.Column(db.Boolean, default=False)
+    alert_75_email_sent = db.Column(db.Boolean, default=False)
+    alert_90_email_sent = db.Column(db.Boolean, default=False)
+    alert_100_email_sent = db.Column(db.Boolean, default=False)
+    alert_50_sms_sent = db.Column(db.Boolean, default=False)
+    alert_75_sms_sent = db.Column(db.Boolean, default=False)
+    alert_90_sms_sent = db.Column(db.Boolean, default=False)
+    alert_100_sms_sent = db.Column(db.Boolean, default=False)
 
     created_at = db.Column(
         db.DateTime,

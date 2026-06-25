@@ -73,6 +73,14 @@ def save_all_users_monthly_snapshot(app):
                 user.budget_alert_75_sent = False
                 user.budget_alert_90_sent = False
                 user.budget_alert_100_sent = False
+                user.budget_alert_50_email_sent = False
+                user.budget_alert_75_email_sent = False
+                user.budget_alert_90_email_sent = False
+                user.budget_alert_100_email_sent = False
+                user.budget_alert_50_sms_sent = False
+                user.budget_alert_75_sms_sent = False
+                user.budget_alert_90_sms_sent = False
+                user.budget_alert_100_sms_sent = False
 
             except Exception as e:
                 print(f"Snapshot error for user {user.id}: {e}")

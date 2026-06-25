@@ -48,6 +48,45 @@ class User(db.Model):
         db.Boolean,
         default=False
     )
+    budget_alert_50_email_sent = db.Column(
+        db.Boolean,
+        default=False
+    )
+
+    budget_alert_75_email_sent = db.Column(
+        db.Boolean,
+        default=False
+    )
+
+    budget_alert_90_email_sent = db.Column(
+        db.Boolean,
+        default=False
+    )
+
+    budget_alert_100_email_sent = db.Column(
+        db.Boolean,
+        default=False
+    )
+
+    budget_alert_50_sms_sent = db.Column(
+        db.Boolean,
+        default=False
+    )
+
+    budget_alert_75_sms_sent = db.Column(
+        db.Boolean,
+        default=False
+    )
+
+    budget_alert_90_sms_sent = db.Column(
+        db.Boolean,
+        default=False
+    )
+
+    budget_alert_100_sms_sent = db.Column(
+        db.Boolean,
+        default=False
+    )
     sms_alert_enabled = db.Column(
         db.Boolean,
         default=False

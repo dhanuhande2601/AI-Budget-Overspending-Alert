@@ -342,6 +342,14 @@ button:hover {
   padding: 10px;
   border-radius: 8px;
   cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.voice-btn.recording {
+  background: #dc2626;
 }
  
 /* =====================

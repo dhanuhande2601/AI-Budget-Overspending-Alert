@@ -20,6 +20,7 @@ from services.sms_parser import parse_expense_sms
 from services.email_service import send_budget_alert
 from models.category_budget_model import CategoryBudget
 from services.ai_budget_engine import detect_overspending
+from services.recurring_expense_service import process_due_recurring_expenses
 from services.sms_service import send_sms
 from models.user_model import User
 expense = Blueprint(
@@ -254,7 +255,11 @@ def _fallback_parse_voice_expense(transcript):
         r"(?:rs\.?|rupees?|inr)?\s*([0-9][0-9,]*(?:\.[0-9]{1,2})?)",
         lower
     )
-    amount = float(amount_match.group(1).replace(',', '')) if amount_match else 0
+    amount = (
+        float(amount_match.group(1).replace(',', ''))
+        if amount_match
+        else _extract_voice_amount(transcript)
+    )
 
     payment_method = ""
     if any(word in lower for word in ["upi", "gpay", "google pay", "phonepe", "phone pay", "paytm"]):
@@ -415,6 +420,14 @@ def _mark_reached_budget_alerts_sent(user, threshold):
             setattr(user, flag_attr, True)
 
 
+def _budget_email_flag(flag_attr):
+    return flag_attr.replace("_sent", "_email_sent")
+
+
+def _budget_sms_flag(flag_attr):
+    return flag_attr.replace("_sent", "_sms_sent")
+
+
 def _send_overall_budget_alerts(user, total_spending):
     monthly_budget = float(user.available_budget or 0)
     if monthly_budget <= 0:
@@ -423,12 +436,27 @@ def _send_overall_budget_alerts(user, total_spending):
     percentage = (total_spending / monthly_budget) * 100
 
     for threshold, flag_attr in BUDGET_ALERT_THRESHOLDS:
-        if percentage < threshold or getattr(user, flag_attr):
+        if percentage < threshold:
+            continue
+
+        email_flag_attr = _budget_email_flag(flag_attr)
+        sms_flag_attr = _budget_sms_flag(flag_attr)
+        legacy_sent = bool(getattr(user, flag_attr))
+        email_already_sent = (
+            bool(getattr(user, email_flag_attr))
+            or legacy_sent
+        )
+        sms_already_sent = bool(getattr(user, sms_flag_attr))
+
+        should_email = bool(user.email and not email_already_sent)
+        should_sms = bool(user.phone and not sms_already_sent)
+
+        if not should_email and not should_sms:
             continue
 
         sent_any_channel = False
 
-        if user.email:
+        if should_email:
             try:
                 send_budget_alert(
                     user.email,
@@ -437,10 +465,13 @@ def _send_overall_budget_alerts(user, total_spending):
                     monthly_budget
                 )
                 sent_any_channel = True
+                setattr(user, email_flag_attr, True)
             except Exception as error:
                 print("Budget email sending failed:", error)
+        elif not user.email:
+            print("Budget email skipped: user email is missing")
 
-        if user.phone:
+        if should_sms:
             try:
                 sms_sid = send_sms(
                     user.phone,
@@ -450,9 +481,15 @@ def _send_overall_budget_alerts(user, total_spending):
                         monthly_budget
                     )
                 )
-                sent_any_channel = sent_any_channel or bool(sms_sid)
+                if sms_sid:
+                    sent_any_channel = True
+                    setattr(user, sms_flag_attr, True)
+                else:
+                    print("Budget SMS not marked sent because provider did not return SID.")
             except Exception as error:
                 print("Budget SMS sending failed:", error)
+        elif not user.phone:
+            print("Budget SMS skipped: user phone is missing")
 
         if not sent_any_channel:
             print("Budget alert not marked sent because no channel delivered.")
@@ -684,28 +721,30 @@ def _run_expense_notifications_async(current_user_id, total_spending):
                 # single expense added while spending stays in that band.
                 new_alerts = [a for a in alerts if a.get("should_notify")]
 
-                delivered_alert_keys = set()
-
                 for alert in new_alerts:
-                    alert_key = (alert["budget_id"], alert["flag_attr"])
-
                     try:
-                        if current_user.email:
+                        if alert.get("should_email"):
                             send_category_alert(
                                 current_user.email,
                                 alert["category"],
                                 alert["percent"],
                                 alert["type"],
-                                alert.get("threshold")
+                                alert.get("threshold"),
+                                alert.get("spent"),
+                                alert.get("budget"),
+                                alert.get("remaining")
                             )
-                            delivered_alert_keys.add(alert_key)
-                        else:
+                            mark_category_alert_sent(
+                                alert["budget_id"],
+                                alert["email_flag_attr"]
+                            )
+                        elif not current_user.email:
                             print("Category email skipped: user email is missing")
                     except Exception as error:
                         print("Category email sending failed:", error)
 
                     try:
-                        if current_user.phone:
+                        if alert.get("should_sms"):
                             category = alert["category"]
                             budget_amount = round(alert["budget"])
                             spent_amount = round(alert["spent"])
@@ -737,25 +776,20 @@ def _run_expense_notifications_async(current_user_id, total_spending):
 
                             sms_sid = send_sms(current_user.phone, sms_text)
                             if sms_sid:
-                                delivered_alert_keys.add(alert_key)
-                        else:
+                                mark_category_alert_sent(
+                                    alert["budget_id"],
+                                    alert["sms_flag_attr"]
+                                )
+                            else:
+                                print(
+                                    "Category SMS not marked sent because provider did not return SID:",
+                                    alert["category"],
+                                    alert["type"]
+                                )
+                        elif not current_user.phone:
                             print("Category SMS skipped: user phone is missing")
                     except Exception as error:
                         print("SMS sending failed:", error)
-
-                for alert in new_alerts:
-                    alert_key = (alert["budget_id"], alert["flag_attr"])
-                    if alert_key in delivered_alert_keys:
-                        mark_category_alert_sent(
-                            alert["budget_id"],
-                            alert["flag_attr"]
-                        )
-                    else:
-                        print(
-                            "Category alert not marked sent because no channel delivered:",
-                            alert["category"],
-                            alert["type"]
-                        )
 
                 # Corrected sender above handled all new alerts. Keep the
                 # older block below inactive to avoid duplicate messages.
@@ -829,6 +863,14 @@ def get_expenses():
     current_user_id = int(
         get_jwt_identity()
     )
+
+    try:
+        process_due_recurring_expenses(
+            current_app._get_current_object(),
+            current_user_id
+        )
+    except Exception as error:
+        print("Recurring expense auto-check failed:", error)
 
     expenses = Expense.query.filter_by(
         user_id=current_user_id
