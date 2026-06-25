@@ -1,7 +1,13 @@
 import threading
+import os
+import tempfile
+import json
+import re
 from datetime import datetime
 from flask import Blueprint, request, jsonify, current_app
 from flask_jwt_extended import (jwt_required,get_jwt_identity)
+from openai import OpenAI
+from config import Config
 from database.db import db
 from services.category_alert_service import (check_category_alerts)
 from services.email_service import (send_category_alert)
@@ -17,6 +23,169 @@ expense = Blueprint(
     'expense',
     __name__
 )
+
+openai_client = OpenAI(api_key=Config.OPENAI_API_KEY) if Config.OPENAI_API_KEY else None
+
+ALLOWED_EXPENSE_CATEGORIES = {
+    "Food",
+    "Travel",
+    "Shopping",
+    "Health",
+    "Adventure",
+    "Loan",
+    "Bills",
+    "Grocery",
+}
+
+
+def _normalize_payment_method(payment_method):
+    payment_method = (payment_method or '').strip().lower()
+
+    if payment_method in ["gpay", "google pay", "phonepe", "paytm", "upi"]:
+        return "UPI"
+
+    if payment_method in ["credit card", "debit card", "card"]:
+        return "Card"
+
+    if payment_method in ["net banking", "netbanking", "neft", "imps"]:
+        return "Net Banking"
+
+    if payment_method == "cash":
+        return "Cash"
+
+    return payment_method.title() if payment_method else ""
+
+
+def _transcribe_audio_file(audio_file):
+    if not openai_client:
+        raise RuntimeError("Voice transcription is not configured. OPENAI_API_KEY is missing.")
+
+    if not audio_file:
+        raise ValueError("Audio file is required")
+
+    suffix = os.path.splitext(audio_file.filename or '')[1] or '.webm'
+    temp_path = None
+
+    try:
+        with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as temp_file:
+            audio_file.save(temp_file.name)
+            temp_path = temp_file.name
+
+        with open(temp_path, 'rb') as file_handle:
+            transcription = openai_client.audio.transcriptions.create(
+                model='whisper-1',
+                file=file_handle,
+                language='en'
+            )
+
+        transcript = (getattr(transcription, 'text', '') or '').strip()
+        if not transcript:
+            raise ValueError("Could not detect speech in the recording")
+
+        return transcript
+
+    finally:
+        if temp_path and os.path.exists(temp_path):
+            try:
+                os.remove(temp_path)
+            except OSError:
+                pass
+
+
+def _fallback_parse_voice_expense(transcript):
+    lower = transcript.lower()
+    amount_match = re.search(
+        r"(?:rs\.?|rupees?|inr)?\s*([0-9][0-9,]*(?:\.[0-9]{1,2})?)",
+        lower
+    )
+    amount = float(amount_match.group(1).replace(',', '')) if amount_match else 0
+
+    payment_method = ""
+    if any(word in lower for word in ["upi", "gpay", "google pay", "phonepe", "phone pay", "paytm"]):
+        payment_method = "UPI"
+    elif any(word in lower for word in ["credit card", "debit card", "card"]):
+        payment_method = "Card"
+    elif any(word in lower for word in ["net banking", "netbanking", "neft", "imps"]):
+        payment_method = "Net Banking"
+    elif "cash" in lower:
+        payment_method = "Cash"
+
+    keyword_categories = {
+        "Food": ["food", "lunch", "dinner", "breakfast", "snacks", "swiggy", "zomato", "restaurant", "coffee"],
+        "Travel": ["petrol", "fuel", "uber", "ola", "cab", "taxi", "metro", "bus", "train", "parking"],
+        "Shopping": ["shopping", "amazon", "flipkart", "myntra", "clothes", "shoes", "electronics"],
+        "Health": ["medical", "pharmacy", "medicine", "hospital", "doctor", "clinic"],
+        "Adventure": ["movie", "cinema", "netflix", "spotify", "game", "trip", "entertainment"],
+        "Loan": ["emi", "loan", "installment", "instalment"],
+        "Bills": ["bill", "electricity", "recharge", "broadband", "wifi", "mobile", "rent", "subscription"],
+        "Grocery": ["grocery", "groceries", "vegetables", "milk", "fruit", "bread", "rice"],
+    }
+    category = "Shopping"
+    for category_name, keywords in keyword_categories.items():
+        if any(keyword in lower for keyword in keywords):
+            category = category_name
+            break
+
+    title = re.sub(r"(?:rs\.?|rupees?|inr)?\s*[0-9][0-9,]*(?:\.[0-9]{1,2})?", " ", transcript, flags=re.I)
+    title = re.sub(r"\b(i|paid|spend|spent|add|expense|for|on|at|using|with|by|via|through|rupees?|rs|inr|upi|gpay|google pay|phonepe|phone pay|paytm|card|cash)\b", " ", title, flags=re.I)
+    title = re.sub(r"[^a-zA-Z0-9\s&-]", " ", title)
+    title = re.sub(r"\s+", " ", title).strip()
+
+    return {
+        "title": title or f"{category} expense",
+        "amount": amount,
+        "category": category,
+        "payment_method": payment_method,
+    }
+
+
+def _parse_voice_expense_with_ai(transcript):
+    if not openai_client:
+        return _fallback_parse_voice_expense(transcript)
+
+    try:
+        response = openai_client.chat.completions.create(
+            model="gpt-4o-mini",
+            response_format={"type": "json_object"},
+            messages=[
+                {
+                    "role": "system",
+                    "content": (
+                        "Extract one personal expense from the user's sentence. "
+                        "Return only JSON with title, amount, category, payment_method. "
+                        "category must be one of: Food, Travel, Shopping, Health, "
+                        "Adventure, Loan, Bills, Grocery. amount must be a number. "
+                        "payment_method may be UPI, Card, Net Banking, Cash, or empty."
+                    )
+                },
+                {"role": "user", "content": transcript}
+            ],
+            temperature=0
+        )
+        content = response.choices[0].message.content or "{}"
+        parsed = json.loads(content)
+    except Exception as error:
+        print("Voice AI parse failed, using fallback:", error)
+        parsed = _fallback_parse_voice_expense(transcript)
+
+    title = (parsed.get("title") or "").strip()
+    category = (parsed.get("category") or "Shopping").strip().title()
+    payment_method = _normalize_payment_method(parsed.get("payment_method"))
+
+    try:
+        amount = float(parsed.get("amount"))
+    except (TypeError, ValueError):
+        amount = 0
+
+    if category not in ALLOWED_EXPENSE_CATEGORIES:
+        category = "Shopping"
+
+    return {
+        "title": title or f"{category} expense",
+        "amount": amount,
+        "category": category,
+        "payment_method": payment_method,
+    }
 
 def async_backup_expenses():
     app = current_app._get_current_object()
@@ -238,6 +407,104 @@ def add_expense():
         "total_spending": total_spending,
         "overspending_alerts": overspending_alerts
     }), 201
+
+
+@expense.route('/voice-transcribe', methods=['POST'])
+@jwt_required()
+def transcribe_voice_expense():
+    audio_file = request.files.get('audio')
+
+    try:
+        transcript = _transcribe_audio_file(audio_file)
+        return jsonify({
+            "transcript": transcript
+        }), 200
+
+    except ValueError as error:
+        return jsonify({
+            "message": str(error)
+        }), 400
+
+    except RuntimeError as error:
+        return jsonify({
+            "message": str(error)
+        }), 500
+
+    except Exception as error:
+        print("Voice transcription failed:", error)
+        return jsonify({
+            "message": "Voice transcription failed. Please try again."
+        }), 500
+
+
+@expense.route('/voice-add', methods=['POST'])
+@jwt_required()
+def add_voice_expense():
+    current_user_id = int(get_jwt_identity())
+    audio_file = request.files.get('audio')
+
+    try:
+        transcript = _transcribe_audio_file(audio_file)
+        parsed = _parse_voice_expense_with_ai(transcript)
+
+        title = (parsed.get("title") or "").strip()
+        category = (parsed.get("category") or "").strip().title()
+        payment_method = _normalize_payment_method(parsed.get("payment_method"))
+        amount = float(parsed.get("amount") or 0)
+
+        if not title or not category:
+            return jsonify({
+                "message": "Could not detect expense title or category from voice",
+                "transcript": transcript
+            }), 400
+
+        if amount <= 0:
+            return jsonify({
+                "message": "Could not detect expense amount from voice",
+                "transcript": transcript
+            }), 400
+
+        new_expense = create_expense(
+            current_user_id,
+            title,
+            amount,
+            category,
+            payment_method
+        )
+
+        total_spending = get_total_spending(current_user_id)
+        overspending_alerts = detect_overspending(current_user_id)
+        _run_expense_notifications_async(current_user_id, total_spending)
+
+        return jsonify({
+            "message": "Voice expense added successfully",
+            "transcript": transcript,
+            "expense": {
+                "id": new_expense.id,
+                "title": new_expense.title,
+                "amount": float(new_expense.amount),
+                "category": new_expense.category,
+                "payment_method": new_expense.payment_method,
+            },
+            "total_spending": total_spending,
+            "overspending_alerts": overspending_alerts
+        }), 201
+
+    except ValueError as error:
+        return jsonify({
+            "message": str(error)
+        }), 400
+
+    except RuntimeError as error:
+        return jsonify({
+            "message": str(error)
+        }), 500
+
+    except Exception as error:
+        print("Voice expense add failed:", error)
+        return jsonify({
+            "message": "Voice expense could not be added. Please try again."
+        }), 500
 
 
 def _run_expense_notifications_async(current_user_id, total_spending):

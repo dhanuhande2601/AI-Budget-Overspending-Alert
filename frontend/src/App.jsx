@@ -408,6 +408,15 @@ function App() {
   }
 
   async function handleVoiceExpense(expenseData) {
+    if (expenseData?.alreadySaved) {
+      setMessage('Voice expense added successfully')
+      setExpenseForm(emptyExpense)
+      setEditingExpenseId(null)
+      await refreshDashboard()
+      await loadCategoryAlerts()
+      return true
+    }
+
     return saveExpense(expenseData, { forceCreate: true })
   }
 
@@ -525,6 +534,7 @@ function App() {
             onSubmit={handleSaveExpense}
             onVoiceExpense={handleVoiceExpense}
             searchTerm={searchTerm}
+            token={token}
           />
         </div>
 

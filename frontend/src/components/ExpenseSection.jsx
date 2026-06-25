@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react'
 import { FiPlus } from 'react-icons/fi'
+import { addVoiceExpense } from '../api/budgetApi'
 
 function ExpenseSection({
   categoryFilter,
@@ -17,16 +18,30 @@ function ExpenseSection({
   onStartEdit,
   onVoiceExpense,
   searchTerm,
+  token,
 }) {
   const [showExpenses, setShowExpenses] = useState(false)
   const [isListening, setIsListening] = useState(false)
   const [voiceStatus, setVoiceStatus] = useState('')
   const recognitionRef = useRef(null)
+  const voiceTranscriptRef = useRef('')
+  const voiceSaveStartedRef = useRef(false)
+  const voiceTimeoutRef = useRef(null)
+  const micStreamRef = useRef(null)
+  const mediaRecorderRef = useRef(null)
+  const audioChunksRef = useRef([])
+
+  const paymentMethods = [
+    { value: 'UPI', keywords: ['upi', 'u p i', 'google pay', 'gpay', 'phonepe', 'phone pay', 'paytm'] },
+    { value: 'Card', keywords: ['card', 'credit card', 'debit card'] },
+    { value: 'Net Banking', keywords: ['net banking', 'netbanking', 'neft', 'imps'] },
+    { value: 'Cash', keywords: ['cash'] },
+  ]
 
   const categoryKeywords = {
     Food: [
       'swiggy', 'zomato', 'restaurant', 'cafe', 'food', 'pizza', 'hotel',
-      'chai', 'tea', 'coffee', 'lunch', 'dinner', 'breakfast', 'snacks',
+      'tea', 'coffee', 'lunch', 'dinner', 'breakfast', 'snacks',
       'burger', 'biryani', 'meal',
     ],
     Travel: [
@@ -52,13 +67,15 @@ function ExpenseSection({
       'postpaid', 'gas bill', 'water bill', 'rent', 'subscription',
     ],
     Grocery: [
-      'grocery', 'groceries', 'kirana', 'vegetables', 'vegetable', 'milk',
-      'ration', 'household', 'fruit', 'fruits', 'bread', 'rice', 'dal',
+      'grocery', 'groceries', 'vegetables', 'vegetable', 'milk',
+      'household', 'fruit', 'fruits', 'bread', 'rice',
     ],
   }
 
+  const amountPattern = /(?:rs\.?|rupees?|inr|₹)?\s*([0-9][0-9,]*(?:\.[0-9]{1,2})?)\s*(?:rs\.?|rupees?|inr)?/i
+
   const extractAmount = (text) => {
-    const match = text.match(/(?:rs\.?|rupees?|inr)?\s*([0-9][0-9,]*(?:\.[0-9]{1,2})?)/i)
+    const match = text.match(amountPattern)
     if (match) return match[1].replace(/,/g, '')
 
     const smallNumbers = {
@@ -72,24 +89,9 @@ function ExpenseSection({
       seven: 7,
       eight: 8,
       nine: 9,
-      ek: 1,
-      do: 2,
-      teen: 3,
-      char: 4,
-      chaar: 4,
-      paanch: 5,
-      panch: 5,
-      che: 6,
-      chhe: 6,
-      saat: 7,
-      aath: 8,
-      nau: 9,
       ten: 10,
-      das: 10,
       eleven: 11,
-      gyarah: 11,
       twelve: 12,
-      barah: 12,
       thirteen: 13,
       fourteen: 14,
       fifteen: 15,
@@ -100,9 +102,7 @@ function ExpenseSection({
     }
     const tens = {
       twenty: 20,
-      bees: 20,
       thirty: 30,
-      tees: 30,
       forty: 40,
       fifty: 50,
       sixty: 60,
@@ -131,14 +131,7 @@ function ExpenseSection({
       } else if (word === 'hundred') {
         current = (current || 1) * 100
         foundNumberWord = true
-      } else if (word === 'sau') {
-        current = (current || 1) * 100
-        foundNumberWord = true
       } else if (word === 'thousand') {
-        total += (current || 1) * 1000
-        current = 0
-        foundNumberWord = true
-      } else if (word === 'hazar' || word === 'hazaar') {
         total += (current || 1) * 1000
         current = 0
         foundNumberWord = true
@@ -161,9 +154,43 @@ function ExpenseSection({
     return expenseForm.category || 'Shopping'
   }
 
+  const detectPaymentMethod = (text) => {
+    const lower = text.toLowerCase()
+    const match = paymentMethods.find((method) =>
+      method.keywords.some((keyword) => lower.includes(keyword))
+    )
+    return match?.value || ''
+  }
+
+  const stripPaymentWords = (text) =>
+    paymentMethods.reduce(
+      (current, method) =>
+        method.keywords.reduce(
+          (value, keyword) => value.replace(new RegExp(`\\b${keyword.replace(/\s+/g, '\\s+')}\\b`, 'gi'), ''),
+          current
+        ),
+      text
+    )
+
+  const extractTitle = (text) => {
+    const withoutAmount = text.replace(amountPattern, ' ')
+    const withoutPayment = stripPaymentWords(withoutAmount)
+    const afterPreposition = withoutPayment.match(/\b(?:for|on|at|from)\s+(.+)$/i)?.[1] || withoutPayment
+
+    return afterPreposition
+      .replace(/\b(i|a|an|the|please|add|create|record|expense|spend|spent|pay|paid|payment|buy|bought|purchase|purchased|using|with|by|via|through|rupee|rupees|rs|inr)\b/gi, ' ')
+      .replace(/[^a-z0-9\s&-]/gi, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+  }
+
   const saveVoiceExpense = async (text) => {
+    if (voiceSaveStartedRef.current) return
+    voiceSaveStartedRef.current = true
+
     const cleanText = (text || '').trim()
     if (!cleanText) {
+      voiceSaveStartedRef.current = false
       setVoiceStatus('No speech detected. Please try again closer to the microphone.')
       return
     }
@@ -174,41 +201,8 @@ function ExpenseSection({
     const lower = cleanText.toLowerCase()
     const amount = extractAmount(cleanText)
     const category = detectCategory(cleanText)
-
-    let paymentMethod = ''
-    if (
-      lower.includes('upi') ||
-      lower.includes('u p i') ||
-      lower.includes('you pee eye') ||
-      lower.includes('gpay') ||
-      lower.includes('google pay') ||
-      lower.includes('phonepe') ||
-      lower.includes('phone pay') ||
-      lower.includes('paytm')
-    ) {
-      paymentMethod = 'UPI'
-    } else if (
-      lower.includes('card') ||
-      lower.includes('credit card') ||
-      lower.includes('debit card')
-    ) {
-      paymentMethod = 'Card'
-    } else if (
-      lower.includes('net banking') ||
-      lower.includes('netbanking') ||
-      lower.includes('neft') ||
-      lower.includes('imps')
-    ) {
-      paymentMethod = 'Net Banking'
-    }
-
-    const title = cleanText
-      .replace(/(?:rs\.?|rupees?|inr)?\s*[0-9][0-9,]*(?:\.[0-9]{1,2})?/gi, '')
-      .replace(/rs\.?|rupees?|inr/gi, '')
-      .replace(/gpay|google pay|phonepe|phone pay|paytm|upi|u p i|you pee eye|credit card|debit card/gi, '')
-      .replace(/\b(i|add|expense|spend|spent|paid|payment|for|on|by|using|with|rupee|rupees)\b/gi, '')
-      .replace(/\s+/g, ' ')
-      .trim()
+    const paymentMethod = detectPaymentMethod(lower)
+    const title = extractTitle(cleanText)
 
     onExpenseFormChange('title', title)
     onExpenseFormChange('amount', amount)
@@ -216,7 +210,8 @@ function ExpenseSection({
     onExpenseFormChange('payment_method', paymentMethod)
 
     if (!amount) {
-      setVoiceStatus('Amount not detected. Say: "Swiggy 250 UPI".')
+      voiceSaveStartedRef.current = false
+      setVoiceStatus('Amount not detected. Say: "I paid 250 for lunch using UPI".')
       return
     }
 
@@ -239,8 +234,111 @@ function ExpenseSection({
     console.log('Payment =', paymentMethod)
   }
 
-  const startListening = () => {
+  const stopMicStream = () => {
+    if (micStreamRef.current) {
+      micStreamRef.current.getTracks().forEach((track) => track.stop())
+      micStreamRef.current = null
+    }
+  }
+
+  const clearVoiceTimeout = () => {
+    if (voiceTimeoutRef.current) {
+      window.clearTimeout(voiceTimeoutRef.current)
+      voiceTimeoutRef.current = null
+    }
+  }
+
+  const recordVoiceExpense = async () => {
+    if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) {
+      return false
+    }
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      micStreamRef.current = stream
+      audioChunksRef.current = []
+
+      const mimeType = MediaRecorder.isTypeSupported('audio/webm')
+        ? 'audio/webm'
+        : ''
+      const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined)
+      mediaRecorderRef.current = recorder
+
+      recorder.ondataavailable = (event) => {
+        if (event.data?.size > 0) {
+          audioChunksRef.current.push(event.data)
+        }
+      }
+
+      recorder.onstop = async () => {
+        clearVoiceTimeout()
+        stopMicStream()
+        mediaRecorderRef.current = null
+
+        const audioBlob = new Blob(audioChunksRef.current, {
+          type: mimeType || 'audio/webm',
+        })
+
+        if (!audioBlob.size) {
+          setIsListening(false)
+          setVoiceStatus('No audio was recorded. Check microphone permission and try again.')
+          return
+        }
+
+        try {
+          setVoiceStatus('AI is adding your expense...')
+          const data = await addVoiceExpense(token, audioBlob)
+          const createdExpense = data?.expense || {}
+          setIsListening(false)
+
+          onExpenseFormChange('title', createdExpense.title || '')
+          onExpenseFormChange('amount', createdExpense.amount || '')
+          onExpenseFormChange('category', createdExpense.category || '')
+          onExpenseFormChange('payment_method', createdExpense.payment_method || '')
+
+          await onVoiceExpense?.({
+            alreadySaved: true,
+            expense: createdExpense,
+          })
+
+          setVoiceStatus(
+            data?.transcript
+              ? `Voice expense added: ${createdExpense.category} Rs. ${createdExpense.amount}. Heard: ${data.transcript}`
+              : `Voice expense added: ${createdExpense.category} Rs. ${createdExpense.amount}`
+          )
+        } catch (error) {
+          setIsListening(false)
+          setVoiceStatus(error.message || 'Voice transcription failed. Please try again.')
+        }
+      }
+
+      setIsListening(true)
+      setVoiceStatus('Recording for 6 seconds... say: "I paid 250 for lunch using UPI"')
+      recorder.start()
+
+      voiceTimeoutRef.current = window.setTimeout(() => {
+        if (mediaRecorderRef.current?.state === 'recording') {
+          mediaRecorderRef.current.stop()
+        }
+      }, 6000)
+
+      return true
+    } catch (error) {
+      console.error('Audio recording failed:', error)
+      stopMicStream()
+      setIsListening(false)
+      setVoiceStatus('Microphone is blocked. Allow mic permission, then click Voice Expense again.')
+      return true
+    }
+  }
+
+  const startListening = async () => {
     setVoiceStatus('')
+    voiceTranscriptRef.current = ''
+    voiceSaveStartedRef.current = false
+
+    const didStartRecording = await recordVoiceExpense()
+    if (didStartRecording) return
 
     const SpeechRecognition =
     window.SpeechRecognition || window.webkitSpeechRecognition
@@ -255,43 +353,96 @@ function ExpenseSection({
       recognitionRef.current.abort()
     }
 
-    recognition.continuous = false
-    recognition.interimResults = false
+    if (navigator.mediaDevices?.getUserMedia) {
+      try {
+        micStreamRef.current = await navigator.mediaDevices.getUserMedia({
+          audio: {
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true,
+          },
+        })
+      } catch (error) {
+        console.error('Microphone permission failed:', error)
+        setVoiceStatus('Microphone is blocked. Allow mic permission, then click Voice Expense again.')
+        return
+      }
+    }
+
+    recognition.continuous = true
+    recognition.interimResults = true
+    recognition.maxAlternatives = 3
     recognition.lang = 'en-IN'
     recognitionRef.current = recognition
 
     recognition.onresult = async (event) => {
-      const text = event.results?.[0]?.[0]?.transcript || ''
-      await saveVoiceExpense(text)
+      let transcript = ''
+      let hasFinalResult = false
+
+      for (let index = 0; index < event.results.length; index += 1) {
+        const result = event.results[index]
+        transcript += `${result?.[0]?.transcript || ''} `
+        if (result?.isFinal) {
+          hasFinalResult = true
+        }
+      }
+
+      const cleanTranscript = transcript.trim()
+      if (cleanTranscript) {
+        voiceTranscriptRef.current = cleanTranscript
+        setVoiceStatus(`Heard: ${cleanTranscript}`)
+      }
+
+      if (hasFinalResult && cleanTranscript) {
+        clearVoiceTimeout()
+        recognition.stop()
+        await saveVoiceExpense(cleanTranscript)
+      }
     }
 
     recognition.onstart = () => {
       setIsListening(true)
-      setVoiceStatus('Listening... say: "I spend 200 rupees on food by UPI"')
+      setVoiceStatus('Listening for 10 seconds... say: "I paid 250 for lunch using UPI"')
+      voiceTimeoutRef.current = window.setTimeout(() => {
+        if (recognitionRef.current === recognition) {
+          recognition.stop()
+        }
+      }, 10000)
     }
 
-    recognition.onend = () => {
+    recognition.onend = async () => {
+      clearVoiceTimeout()
       setIsListening(false)
       if (recognitionRef.current === recognition) {
         recognitionRef.current = null
+      }
+      stopMicStream()
+
+      if (!voiceSaveStartedRef.current && voiceTranscriptRef.current) {
+        await saveVoiceExpense(voiceTranscriptRef.current)
       }
     }
 
     recognition.onerror = (event) => {
       setIsListening(false)
+      clearVoiceTimeout()
 
       // "no-speech" and "aborted" are normal, expected outcomes (the mic
       // just didn't pick up any words, or the user stopped it) - not
       // real errors worth interrupting the user with a popup for.
       if (event.error === 'aborted') {
+        stopMicStream()
         return
       }
 
       if (event.error === 'no-speech') {
-        setVoiceStatus('Voice was not captured. Click Voice Expense and speak again.')
+        if (!voiceTranscriptRef.current) {
+          setVoiceStatus('No voice detected. Keep the mic close and speak after the Listening message appears.')
+        }
         return
       }
 
+      stopMicStream()
       console.error('Speech recognition error:', event.error)
 
       const friendlyMessages = {
@@ -308,6 +459,7 @@ function ExpenseSection({
     } catch (error) {
       console.error('Speech recognition start failed:', error)
       setIsListening(false)
+      stopMicStream()
       setVoiceStatus('Voice could not start. Please wait a second and try again.')
     }
   }

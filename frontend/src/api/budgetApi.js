@@ -10,8 +10,12 @@ export async function apiRequest(path, options = {}) {
   const headers = {
     ...(options.headers || {}),
   }
+
+  const isFormData =
+    typeof FormData !== 'undefined' &&
+    options.body instanceof FormData
  
-  if (options.body && !headers['Content-Type']) {
+  if (options.body && !isFormData && !headers['Content-Type']) {
     headers['Content-Type'] = 'application/json'
   }
  
@@ -231,6 +235,28 @@ export async function getCategoryHistory(
         getAuthHeaders(token),
     }
   )
+}
+
+export async function transcribeVoiceExpense(token, audioBlob) {
+  const formData = new FormData()
+  formData.append('audio', audioBlob, 'voice-expense.webm')
+
+  return apiRequest('/expense/voice-transcribe', {
+    method: 'POST',
+    headers: getAuthHeaders(token),
+    body: formData,
+  })
+}
+
+export async function addVoiceExpense(token, audioBlob) {
+  const formData = new FormData()
+  formData.append('audio', audioBlob, 'voice-expense.webm')
+
+  return apiRequest('/expense/voice-add', {
+    method: 'POST',
+    headers: getAuthHeaders(token),
+    body: formData,
+  })
 }
  
 /* =========================
