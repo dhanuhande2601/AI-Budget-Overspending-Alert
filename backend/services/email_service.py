@@ -89,7 +89,45 @@ def _send_with_resend(message):
         },
         timeout=20,
     )
-    response.raise_for_status()
+    if response.status_code >= 400:
+        raise RuntimeError(
+            f"Resend API error {response.status_code}: {response.text}"
+        )
+    return True
+
+
+def _send_with_brevo(message):
+    api_key = os.getenv("BREVO_API_KEY")
+    sender_email = os.getenv("BREVO_FROM_EMAIL") or _message_sender()
+    sender_name = os.getenv("BREVO_FROM_NAME", "AI Budget App")
+    if not api_key or not sender_email:
+        return False
+
+    response = requests.post(
+        "https://api.brevo.com/v3/smtp/email",
+        headers={
+            "accept": "application/json",
+            "api-key": api_key,
+            "Content-Type": "application/json",
+        },
+        json={
+            "sender": {
+                "name": sender_name,
+                "email": sender_email,
+            },
+            "to": [
+                {"email": recipient}
+                for recipient in message.recipients
+            ],
+            "subject": message.subject,
+            "textContent": message.body or "",
+        },
+        timeout=20,
+    )
+    if response.status_code >= 400:
+        raise RuntimeError(
+            f"Brevo API error {response.status_code}: {response.text}"
+        )
     return True
 
 
@@ -109,6 +147,13 @@ def _send_message(message):
             return
     except Exception as error:
         print("Resend HTTPS fallback failed:", error)
+
+    try:
+        if _send_with_brevo(message):
+            print("Email sent through Brevo HTTPS fallback")
+            return
+    except Exception as error:
+        print("Brevo HTTPS fallback failed:", error)
 
     print("Trying direct SMTP fallback")
     _send_with_ipv4_smtp(message)
