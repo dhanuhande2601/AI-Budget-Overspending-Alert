@@ -60,6 +60,43 @@ def send_test_email(recipient):
         raise
 
 
+def send_overspending_summary(recipient, alerts):
+    msg = Message(
+        subject="AI Budget App - Overspending Alert",
+        recipients=[recipient]
+    )
+
+    lines = [
+        "Overspending Alert",
+        "",
+        "Your recent expense has put one or more budgets in warning/exceeded state.",
+        "",
+    ]
+
+    for alert in alerts:
+        category = alert.get("category", "Budget")
+        spent = _format_money(alert.get("spent"))
+        limit = _format_money(alert.get("limit"))
+        percentage = round(float(alert.get("percentage") or 0), 2)
+        message = alert.get("message") or "Budget limit reached"
+        lines.append(f"- {category}: {percentage}% used ({spent} of {limit})")
+        lines.append(f"  {message}")
+
+    lines.extend([
+        "",
+        "Please review your spending in the AI Budget App."
+    ])
+
+    msg.body = "\n".join(lines)
+
+    try:
+        print("Sending overspending summary email to:", recipient)
+        mail.send(msg)
+    except Exception as error:
+        print("Overspending summary email sending failed:", error)
+        raise
+
+
 def send_category_alert(
 
     email,

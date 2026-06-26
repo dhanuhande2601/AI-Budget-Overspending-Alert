@@ -1,7 +1,5 @@
 from datetime import datetime, timedelta
 import calendar
-from sqlalchemy import func
- 
 from models.expense_model import Expense
 from models.user_model import User
  
@@ -13,17 +11,18 @@ from datetime import datetime
 def detect_overspending(user_id):
     now = datetime.now()
     budgets = CategoryBudget.query.filter_by(user_id=user_id).all()
+    current_month_start = datetime(now.year, now.month, 1)
+    expenses = Expense.query.filter(
+        Expense.user_id == user_id,
+        Expense.created_at >= current_month_start
+    ).all()
     alerts = []
     for budget in budgets:
-        expenses = Expense.query.filter(
-            Expense.user_id == user_id,
-            Expense.category == budget.category,
-            func.extract('month', Expense.created_at) == now.month,
-            func.extract('year', Expense.created_at) == now.year
-        ).all()
+        budget_category = (budget.category or "").strip().title()
         spent = sum(
             float(exp.amount)
             for exp in expenses
+            if (exp.category or "").strip().title() == budget_category
         )
  
         percentage = (
@@ -35,8 +34,8 @@ def detect_overspending(user_id):
         if percentage >= 100:
  
             alerts.append({
-                "category": budget.category,
-                "message": f"{budget.category} budget exceeded",
+                "category": budget_category,
+                "message": f"{budget_category} budget exceeded",
                 "spent": spent,
                 "limit": budget.monthly_limit,
                 "percentage": round(percentage, 2)
@@ -45,8 +44,8 @@ def detect_overspending(user_id):
         elif percentage >= 80:
  
             alerts.append({
-                "category": budget.category,
-                "message": f"{budget.category} budget is {round(percentage,2)}% used",
+                "category": budget_category,
+                "message": f"{budget_category} budget is {round(percentage,2)}% used",
                 "spent": spent,
                 "limit": budget.monthly_limit,
                 "percentage": round(percentage, 2)

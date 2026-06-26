@@ -13,7 +13,10 @@ from services.category_alert_service import (
     check_category_alerts,
     mark_category_alert_sent,
 )
-from services.email_service import (send_category_alert)
+from services.email_service import (
+    send_category_alert,
+    send_overspending_summary,
+)
 from models.expense_model import Expense
 from services.backup_service import backup_expenses
 from services.sms_parser import parse_expense_sms
@@ -609,7 +612,11 @@ def add_expense():
     # immediately instead of waiting on SMTP/Twilio/
     # OpenAI round-trips, which can each take seconds.
     # =========================================
-    _run_expense_notifications_async(current_user_id, total_spending)
+    _run_expense_notifications_async(
+        current_user_id,
+        total_spending,
+        overspending_alerts
+    )
 
     return jsonify({
         "message": "Expense added successfully",
@@ -683,7 +690,11 @@ def add_voice_expense():
 
         total_spending = get_total_spending(current_user_id)
         overspending_alerts = detect_overspending(current_user_id)
-        _run_expense_notifications_async(current_user_id, total_spending)
+        _run_expense_notifications_async(
+            current_user_id,
+            total_spending,
+            overspending_alerts
+        )
 
         return jsonify({
             "message": "Voice expense added successfully",
@@ -716,7 +727,11 @@ def add_voice_expense():
         }), 500
 
 
-def _run_expense_notifications_async(current_user_id, total_spending):
+def _run_expense_notifications_async(
+    current_user_id,
+    total_spending,
+    overspending_alerts=None
+):
     app = current_app._get_current_object()
 
     def task():
@@ -736,6 +751,7 @@ def _run_expense_notifications_async(current_user_id, total_spending):
                 # tier (e.g. 50%) from spamming an SMS/email on every
                 # single expense added while spending stays in that band.
                 new_alerts = [a for a in alerts if a.get("should_notify")]
+                sent_category_email = False
 
                 for alert in new_alerts:
                     try:
@@ -754,6 +770,7 @@ def _run_expense_notifications_async(current_user_id, total_spending):
                                 alert["budget_id"],
                                 alert["email_flag_attr"]
                             )
+                            sent_category_email = True
                         elif not current_user.email:
                             print("Category email skipped: user email is missing")
                     except Exception as error:
@@ -806,6 +823,20 @@ def _run_expense_notifications_async(current_user_id, total_spending):
                             print("Category SMS skipped: user phone is missing")
                     except Exception as error:
                         print("SMS sending failed:", error)
+
+                if (
+                    not sent_category_email
+                    and current_user.email
+                    and _email_alerts_enabled(current_user)
+                    and overspending_alerts
+                ):
+                    try:
+                        send_overspending_summary(
+                            current_user.email,
+                            overspending_alerts
+                        )
+                    except Exception as error:
+                        print("Overspending summary email failed:", error)
 
                 # Corrected sender above handled all new alerts. Keep the
                 # older block below inactive to avoid duplicate messages.
@@ -1144,7 +1175,13 @@ def add_sms_expense():
         current_user_id
     )
 
-    _run_expense_notifications_async(current_user_id, total_spending)
+    overspending_alerts = detect_overspending(current_user_id)
+
+    _run_expense_notifications_async(
+        current_user_id,
+        total_spending,
+        overspending_alerts
+    )
 
     return jsonify({
 
