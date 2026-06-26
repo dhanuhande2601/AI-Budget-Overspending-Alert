@@ -11,6 +11,9 @@ from config import Config
 from extensions import mail
 
 
+APP_SIGNATURE = "AI BUDGET OVERSPENDING ALERT"
+
+
 def _format_money(amount):
     try:
         value = float(amount or 0)
@@ -18,6 +21,30 @@ def _format_money(amount):
         value = 0
 
     return f"Rs. {value:,.2f}"
+
+
+def _format_percent(value):
+    try:
+        percent = float(value or 0)
+    except (TypeError, ValueError):
+        percent = 0
+
+    return f"{percent:.2f}".rstrip("0").rstrip(".")
+
+
+def _alert_severity(percent):
+    try:
+        value = float(percent or 0)
+    except (TypeError, ValueError):
+        value = 0
+
+    if value >= 100:
+        return "Budget Exceeded"
+    if value >= 90:
+        return "Critical"
+    if value >= 75:
+        return "Warning"
+    return "Heads up"
 
 
 def _message_sender():
@@ -99,7 +126,7 @@ def _send_with_resend(message):
 def _send_with_brevo(message):
     api_key = os.getenv("BREVO_API_KEY")
     sender_email = os.getenv("BREVO_FROM_EMAIL") or _message_sender()
-    sender_name = os.getenv("BREVO_FROM_NAME", "AI Budget App")
+    sender_name = os.getenv("BREVO_FROM_NAME", APP_SIGNATURE)
     if not api_key or not sender_email:
         return False
 
@@ -162,23 +189,30 @@ def _send_message(message):
 def send_budget_alert(recipient, percentage, spent, budget):
     remaining = max(float(budget or 0) - float(spent or 0), 0)
     exceeded_by = max(float(spent or 0) - float(budget or 0), 0)
+    percent_text = _format_percent(percentage)
+    severity = _alert_severity(percentage)
 
     msg = Message(
-        subject=f"Budget Alert - {percentage}% Used",
+        subject=f"AI Budget Alert: {severity} - {percent_text}% Used",
         recipients=[recipient]
     )
 
     msg.body = f"""
+Hi,
+
 Budget Warning
 
-You have used {percentage}% of your monthly budget.
+You have used {percent_text}% of your monthly budget.
 
-Budget: {_format_money(budget)}
-Spent: {_format_money(spent)}
-Remaining: {_format_money(remaining)}
-{f"Exceeded By: {_format_money(exceeded_by)}" if exceeded_by > 0 else ""}
+Summary
+- Budget: {_format_money(budget)}
+- Spent: {_format_money(spent)}
+- Remaining: {_format_money(remaining)}
+{f"- Exceeded by: {_format_money(exceeded_by)}" if exceeded_by > 0 else ""}
 
-Please control your expenses.
+Please control your expenses and review your latest spending in the app.
+
+{APP_SIGNATURE}
 """
 
     try:
@@ -191,12 +225,12 @@ Please control your expenses.
 
 def send_test_email(recipient):
     msg = Message(
-        subject="AI Budget App - Email Test",
+        subject=f"{APP_SIGNATURE} - Email Test",
         recipients=[recipient]
     )
     msg.body = (
-        "This test email was sent to your registered AI Budget App email "
-        "address from the deployed backend."
+        f"This test email was sent to your registered {APP_SIGNATURE} "
+        "email address from the deployed backend."
     )
 
     try:
@@ -209,29 +243,39 @@ def send_test_email(recipient):
 
 def send_overspending_summary(recipient, alerts):
     msg = Message(
-        subject="AI Budget App - Overspending Alert",
+        subject="AI Budget Alert: Spending Needs Attention",
         recipients=[recipient]
     )
 
     lines = [
+        "Hi,",
+        "",
         "Overspending Alert",
         "",
         "Your recent expense has put one or more budgets in warning/exceeded state.",
         "",
+        "Budget snapshot",
     ]
 
     for alert in alerts:
         category = alert.get("category", "Budget")
         spent = _format_money(alert.get("spent"))
         limit = _format_money(alert.get("limit"))
-        percentage = round(float(alert.get("percentage") or 0), 2)
+        percentage = _format_percent(alert.get("percentage"))
+        severity = _alert_severity(alert.get("percentage"))
         message = alert.get("message") or "Budget limit reached"
         lines.append(f"- {category}: {percentage}% used ({spent} of {limit})")
-        lines.append(f"  {message}")
+        lines.append(f"  Status: {severity}")
+        lines.append(f"  Insight: {message}")
 
     lines.extend([
         "",
-        "Please review your spending in the AI Budget App."
+        f"Please review your spending in the {APP_SIGNATURE} app.",
+        "",
+        "Recommended action",
+        "Reduce optional spending in the categories listed above until your budget is back on track.",
+        "",
+        APP_SIGNATURE
     ])
 
     msg.body = "\n".join(lines)
@@ -263,31 +307,37 @@ def send_category_alert(
     remaining=None
 
 ):
+    percent_text = _format_percent(percent)
+    alert_level = threshold if threshold else percent_text
+    severity = _alert_severity(percent)
 
     subject = (
 
-        f"{category} Budget Alert"
-        + (f" - {threshold}% Used" if threshold else "")
+        f"AI Budget Alert: {category} {severity}"
+        + (f" - {threshold}% Used" if threshold else f" - {percent_text}% Used")
 
     )
 
     body = f"""
+Hi,
 
-Category : {category}
+Category Budget Alert
 
-Alert Level : {threshold if threshold else round(percent,2)}%
-
-Budget : {_format_money(budget)}
-
-Spent : {_format_money(spent)}
-
-Remaining : {_format_money(remaining)}
-
-Used : {round(percent,2)}%
-
-Status : {alert_type}
+Summary
+- Category: {category}
+- Alert level: {alert_level}%
+- Budget: {_format_money(budget)}
+- Spent: {_format_money(spent)}
+- Remaining: {_format_money(remaining)}
+- Used: {percent_text}%
+- Status: {alert_type}
 
 Please review your spending.
+
+Recommended action
+Review recent {category} expenses and avoid non-essential spending in this category for now.
+
+{APP_SIGNATURE}
 
 """
 

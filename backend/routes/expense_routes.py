@@ -436,7 +436,7 @@ def _email_alerts_enabled(user):
 
 
 def _sms_alerts_enabled(user):
-    return bool(getattr(user, "sms_alert_enabled", False))
+    return Config.SMS_ALERTS_ENABLED or bool(getattr(user, "sms_alert_enabled", False))
 
 
 def _send_overall_budget_alerts(user, total_spending):

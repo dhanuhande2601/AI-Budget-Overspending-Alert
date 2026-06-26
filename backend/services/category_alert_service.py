@@ -6,6 +6,7 @@ from models.category_budget_model import CategoryBudget
 from models.expense_model import Expense
 from models.user_model import User
 from services.festival_prediction_service import get_upcoming_festival
+from config import Config
 
 
 # Ordered low-to-high so every crossed threshold can trigger once.
@@ -41,7 +42,7 @@ def _email_alerts_enabled(user):
 
 
 def _sms_alerts_enabled(user):
-    return bool(getattr(user, "sms_alert_enabled", False))
+    return Config.SMS_ALERTS_ENABLED or bool(getattr(user, "sms_alert_enabled", False))
 
 
 def _reset_flags_if_new_month(budget, now):

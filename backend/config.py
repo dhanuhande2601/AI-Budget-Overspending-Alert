@@ -42,6 +42,14 @@ class Config:
     TWILIO_ACCOUNT_SID = os.getenv("TWILIO_ACCOUNT_SID")
     TWILIO_AUTH_TOKEN = os.getenv("TWILIO_AUTH_TOKEN")
     TWILIO_PHONE = os.getenv("TWILIO_PHONE")
+
+    # -----------------------
+    # SMS PROVIDER
+    # -----------------------
+    SMS_PROVIDER = os.getenv("SMS_PROVIDER", "twilio").lower()
+    SMS_ALERTS_ENABLED = os.getenv("SMS_ALERTS_ENABLED", "False").lower() == "true"
+    FAST2SMS_API_KEY = os.getenv("FAST2SMS_API_KEY")
+    FAST2SMS_ROUTE = os.getenv("FAST2SMS_ROUTE", "q")
     # -----------------------
     # DATABASE CONFIG (FIXED LOGIC)
     # -----------------------

@@ -204,10 +204,11 @@ function App() {
   const refreshDashboard = useCallback(async () => {
     if (!token) return
     try {
-      const data = await fetchDashboardData(token)
+      const [data, predData] = await Promise.all([
+        fetchDashboardData(token),
+        getCategoryPredictions(token).catch(() => null),
+      ])
       updateDashboard(data)
-
-      const predData = await getCategoryPredictions(token).catch(() => null)
       setCategoryPredictions(predData)
     } catch (error) {
       console.log('Dashboard refresh error:', error)
@@ -256,12 +257,12 @@ function App() {
 
     async function initializeData() {
       try {
-        await refreshDashboard()
-        if (!isCurrent) return
         await Promise.all([
+          refreshDashboard(),
           loadCategoryBudgets(),
           loadCategoryAlerts(),
         ])
+        if (!isCurrent) return
       } catch (error) {
         console.log(error)
       }
