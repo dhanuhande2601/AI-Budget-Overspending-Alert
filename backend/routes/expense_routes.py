@@ -428,6 +428,14 @@ def _budget_sms_flag(flag_attr):
     return flag_attr.replace("_sent", "_sms_sent")
 
 
+def _email_alerts_enabled(user):
+    return bool(getattr(user, "email_alert_enabled", True))
+
+
+def _sms_alerts_enabled(user):
+    return bool(getattr(user, "sms_alert_enabled", False))
+
+
 def _send_overall_budget_alerts(user, total_spending):
     monthly_budget = float(user.available_budget or 0)
     if monthly_budget <= 0:
@@ -441,15 +449,19 @@ def _send_overall_budget_alerts(user, total_spending):
 
         email_flag_attr = _budget_email_flag(flag_attr)
         sms_flag_attr = _budget_sms_flag(flag_attr)
-        legacy_sent = bool(getattr(user, flag_attr))
-        email_already_sent = (
-            bool(getattr(user, email_flag_attr))
-            or legacy_sent
-        )
+        email_already_sent = bool(getattr(user, email_flag_attr))
         sms_already_sent = bool(getattr(user, sms_flag_attr))
 
-        should_email = bool(user.email and not email_already_sent)
-        should_sms = bool(user.phone and not sms_already_sent)
+        should_email = bool(
+            user.email
+            and _email_alerts_enabled(user)
+            and not email_already_sent
+        )
+        should_sms = bool(
+            user.phone
+            and _sms_alerts_enabled(user)
+            and not sms_already_sent
+        )
 
         if not should_email and not should_sms:
             continue
@@ -470,6 +482,8 @@ def _send_overall_budget_alerts(user, total_spending):
                 print("Budget email sending failed:", error)
         elif not user.email:
             print("Budget email skipped: user email is missing")
+        elif not _email_alerts_enabled(user):
+            print("Budget email skipped: email alerts are disabled")
 
         if should_sms:
             try:
@@ -490,6 +504,8 @@ def _send_overall_budget_alerts(user, total_spending):
                 print("Budget SMS sending failed:", error)
         elif not user.phone:
             print("Budget SMS skipped: user phone is missing")
+        elif not _sms_alerts_enabled(user):
+            print("Budget SMS skipped: SMS alerts are disabled")
 
         if not sent_any_channel:
             print("Budget alert not marked sent because no channel delivered.")

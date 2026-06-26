@@ -37,6 +37,14 @@ def _sms_flag(flag_attr):
     return flag_attr.replace("_sent", "_sms_sent")
 
 
+def _email_alerts_enabled(user):
+    return bool(getattr(user, "email_alert_enabled", True))
+
+
+def _sms_alerts_enabled(user):
+    return bool(getattr(user, "sms_alert_enabled", False))
+
+
 def _reset_flags_if_new_month(budget, now):
     """Reset per-threshold alert flags when the calendar month changes."""
     if budget.alert_month == now.month and budget.alert_year == now.year:
@@ -181,20 +189,25 @@ def check_category_alerts(user_id):
         for threshold, alert_type, flag_attr in reached_tiers:
             email_flag_attr = _email_flag(flag_attr)
             sms_flag_attr = _sms_flag(flag_attr)
-            legacy_sent = bool(getattr(budget, flag_attr))
 
-            # If this threshold was already marked by the older combined
-            # flag, assume email was handled to avoid duplicate emails after
-            # deploy. SMS still gets its own retry path because the old flag
-            # could have been set even when Twilio failed.
-            email_already_sent = (
-                bool(getattr(budget, email_flag_attr))
-                or legacy_sent
-            )
+            # Channel-specific flags decide whether email/SMS should be
+            # retried. The legacy combined flag only controls in-app alert
+            # history and must not permanently suppress email delivery.
+            email_already_sent = bool(getattr(budget, email_flag_attr))
             sms_already_sent = bool(getattr(budget, sms_flag_attr))
 
-            should_email = bool(user and user.email and not email_already_sent)
-            should_sms = bool(user and user.phone and not sms_already_sent)
+            should_email = bool(
+                user
+                and user.email
+                and _email_alerts_enabled(user)
+                and not email_already_sent
+            )
+            should_sms = bool(
+                user
+                and user.phone
+                and _sms_alerts_enabled(user)
+                and not sms_already_sent
+            )
             should_notify = should_email or should_sms
 
             if not should_notify:
@@ -247,12 +260,6 @@ def check_category_alerts(user_id):
             threshold, alert_type, flag_attr = reached_tiers[-1]
             email_flag_attr = _email_flag(flag_attr)
             sms_flag_attr = _sms_flag(flag_attr)
-            legacy_sent = bool(getattr(budget, flag_attr))
-            email_already_sent = (
-                bool(getattr(budget, email_flag_attr))
-                or legacy_sent
-            )
-            sms_already_sent = bool(getattr(budget, sms_flag_attr))
             message = _build_alert_message(
                 budget_category,
                 threshold,
