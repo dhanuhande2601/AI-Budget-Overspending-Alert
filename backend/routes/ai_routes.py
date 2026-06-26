@@ -2,6 +2,8 @@ from datetime import date
 import calendar
 from flask import Blueprint, jsonify
 from flask_jwt_extended import get_jwt_identity, jwt_required
+from database.db import db
+from models.budget_notification_model import BudgetNotification
 from services.openai_recommendation_service import (
     get_ai_recommendation
 )
@@ -24,6 +26,7 @@ from services.ai_budget_engine import (
     generate_smart_advice,
     predict_month_end_spending,
 )
+from services.email_service import send_overspending_summary
 
 ai = Blueprint('ai', __name__)
 
@@ -32,6 +35,36 @@ def safe_text(value):
     if value is None:
         return ""
     return str(value).replace("₹", "Rs. ")
+
+
+def _email_alerts_enabled(user):
+    return getattr(user, "email_alert_enabled", True) is not False
+
+
+def _send_daily_overspending_email(user, alerts):
+    if not alerts or not user or not user.email or not _email_alerts_enabled(user):
+        return
+
+    today_key = date.today().isoformat()
+    marker_title = f"Daily Overspending Email {today_key}"
+    existing = BudgetNotification.query.filter_by(
+        user_id=user.id,
+        title=marker_title,
+        notification_type="EMAIL"
+    ).first()
+
+    if existing:
+        print("Daily overspending email skipped: already sent to", user.email)
+        return
+
+    send_overspending_summary(user.email, alerts)
+    db.session.add(BudgetNotification(
+        user_id=user.id,
+        title=marker_title,
+        message="Daily overspending summary email sent",
+        notification_type="EMAIL"
+    ))
+    db.session.commit()
 
 
 def current_month_context(user_id):
@@ -103,8 +136,14 @@ def current_month_context(user_id):
 @jwt_required()
 def overspending_alerts():
     current_user_id = int(get_jwt_identity())
+    user = User.query.get(current_user_id)
     alerts = detect_overspending(current_user_id)
     print("OVESPENDING ALERTS =", alerts)
+    try:
+        _send_daily_overspending_email(user, alerts)
+    except Exception as error:
+        print("Daily overspending email failed:", error)
+
     return jsonify({
         "alerts": alerts
     }), 200
