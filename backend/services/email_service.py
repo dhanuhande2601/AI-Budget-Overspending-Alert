@@ -42,6 +42,24 @@ Please control your expenses.
         raise
 
 
+def send_test_email(recipient):
+    msg = Message(
+        subject="AI Budget App - Email Test",
+        recipients=[recipient]
+    )
+    msg.body = (
+        "This test email was sent to your registered AI Budget App email "
+        "address from the deployed backend."
+    )
+
+    try:
+        print("Sending test email to:", recipient)
+        mail.send(msg)
+    except Exception as error:
+        print("Test email sending failed:", error)
+        raise
+
+
 def send_category_alert(
 
     email,

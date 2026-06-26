@@ -9,6 +9,7 @@ from utils.password_hash import check_password
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from services.backup_service import backup_users
 from services.currency_service import get_exchange_rates, SUPPORTED_CURRENCIES
+from services.email_service import send_test_email
 auth = Blueprint('auth', __name__)
 
 def async_backup_users():
@@ -198,6 +199,38 @@ def profile():
         "monthly_budget": monthly_budget,
         "currency": user.currency or 'INR',
         "profile_photo": user.profile_photo,
+    }), 200
+ 
+ 
+@auth.route('/test-email', methods=['POST'])
+@jwt_required()
+def test_registered_email():
+ 
+    current_user_id = int(get_jwt_identity())
+ 
+    user = db.session.get(User, current_user_id)
+ 
+    if not user:
+        return jsonify({
+            "message": "User not found"
+        }), 404
+ 
+    if not user.email:
+        return jsonify({
+            "message": "Registered email is missing"
+        }), 400
+ 
+    try:
+        send_test_email(user.email)
+    except Exception as error:
+        return jsonify({
+            "message": "Test email failed",
+            "error": str(error)
+        }), 500
+ 
+    return jsonify({
+        "message": "Test email sent to registered email",
+        "email": user.email
     }), 200
  
  
