@@ -1,5 +1,13 @@
-from flask_mail import Message
+import os
+import socket
+import smtplib
+import ssl
+from email.message import EmailMessage
 
+from flask_mail import Message
+import requests
+
+from config import Config
 from extensions import mail
 
 
@@ -10,6 +18,100 @@ def _format_money(amount):
         value = 0
 
     return f"Rs. {value:,.2f}"
+
+
+def _message_sender():
+    return Config.MAIL_DEFAULT_SENDER or Config.MAIL_USERNAME
+
+
+def _send_with_ipv4_smtp(message):
+    sender = _message_sender()
+    if not Config.MAIL_USERNAME or not Config.MAIL_PASSWORD or not sender:
+        raise RuntimeError("SMTP credentials are missing.")
+
+    email_message = EmailMessage()
+    email_message["Subject"] = message.subject
+    email_message["From"] = sender
+    email_message["To"] = ", ".join(message.recipients)
+    email_message.set_content(message.body or "")
+
+    addresses = socket.getaddrinfo(
+        Config.MAIL_SERVER,
+        Config.MAIL_PORT,
+        socket.AF_INET,
+        socket.SOCK_STREAM
+    )
+    if not addresses:
+        raise RuntimeError("No IPv4 SMTP address found.")
+
+    smtp_socket = socket.create_connection(addresses[0][4], timeout=20)
+    smtp = smtplib.SMTP(timeout=20)
+    smtp.sock = smtp_socket
+    smtp.file = smtp_socket.makefile("rb")
+    smtp._host = Config.MAIL_SERVER
+
+    try:
+        if Config.MAIL_PORT == 465:
+            context = ssl.create_default_context()
+            smtp.sock = context.wrap_socket(
+                smtp.sock,
+                server_hostname=Config.MAIL_SERVER
+            )
+            smtp.file = smtp.sock.makefile("rb")
+
+        smtp.ehlo()
+        if Config.MAIL_USE_TLS:
+            smtp.starttls(context=ssl.create_default_context())
+            smtp.ehlo()
+        smtp.login(Config.MAIL_USERNAME, Config.MAIL_PASSWORD)
+        smtp.send_message(email_message)
+    finally:
+        smtp.quit()
+
+
+def _send_with_resend(message):
+    api_key = os.getenv("RESEND_API_KEY")
+    sender = os.getenv("RESEND_FROM_EMAIL") or _message_sender()
+    if not api_key or not sender:
+        return False
+
+    response = requests.post(
+        "https://api.resend.com/emails",
+        headers={
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+        },
+        json={
+            "from": sender,
+            "to": message.recipients,
+            "subject": message.subject,
+            "text": message.body or "",
+        },
+        timeout=20,
+    )
+    response.raise_for_status()
+    return True
+
+
+def _send_message(message):
+    try:
+        mail.send(message)
+        return
+    except OSError as error:
+        print("Flask-Mail SMTP send failed:", error)
+    except Exception as error:
+        print("Flask-Mail send failed:", error)
+        raise
+
+    try:
+        if _send_with_resend(message):
+            print("Email sent through Resend HTTPS fallback")
+            return
+    except Exception as error:
+        print("Resend HTTPS fallback failed:", error)
+
+    print("Trying direct SMTP fallback")
+    _send_with_ipv4_smtp(message)
 
 
 def send_budget_alert(recipient, percentage, spent, budget):
@@ -36,7 +138,7 @@ Please control your expenses.
 
     try:
         print("Sending budget alert email to:", recipient)
-        mail.send(msg)
+        _send_message(msg)
     except Exception as error:
         print("Budget email sending failed:", error)
         raise
@@ -54,7 +156,7 @@ def send_test_email(recipient):
 
     try:
         print("Sending test email to:", recipient)
-        mail.send(msg)
+        _send_message(msg)
     except Exception as error:
         print("Test email sending failed:", error)
         raise
@@ -91,7 +193,7 @@ def send_overspending_summary(recipient, alerts):
 
     try:
         print("Sending overspending summary email to:", recipient)
-        mail.send(msg)
+        _send_message(msg)
     except Exception as error:
         print("Overspending summary email sending failed:", error)
         raise
@@ -156,7 +258,7 @@ Please review your spending.
 
     try:
         print("Sending category alert email to:", email)
-        mail.send(msg)
+        _send_message(msg)
     except Exception as error:
         print("Category email sending failed:", error)
         raise
