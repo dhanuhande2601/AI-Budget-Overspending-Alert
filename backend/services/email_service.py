@@ -35,6 +35,7 @@ Please control your expenses.
 """
 
     try:
+        print("Sending budget alert email to:", recipient)
         mail.send(msg)
     except Exception as error:
         print("Budget email sending failed:", error)
@@ -99,6 +100,7 @@ Please review your spending.
     msg.body = body
 
     try:
+        print("Sending category alert email to:", email)
         mail.send(msg)
     except Exception as error:
         print("Category email sending failed:", error)

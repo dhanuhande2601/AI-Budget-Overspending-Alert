@@ -429,7 +429,7 @@ def _budget_sms_flag(flag_attr):
 
 
 def _email_alerts_enabled(user):
-    return bool(getattr(user, "email_alert_enabled", True))
+    return getattr(user, "email_alert_enabled", True) is not False
 
 
 def _sms_alerts_enabled(user):
