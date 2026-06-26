@@ -6,7 +6,6 @@ from models.category_budget_model import CategoryBudget
 from models.expense_model import Expense
 from models.user_model import User
 from services.festival_prediction_service import get_upcoming_festival
-from services.openai_recommendation_service import get_ai_recommendation
 
 
 # Ordered low-to-high so every crossed threshold can trigger once.
@@ -68,6 +67,25 @@ def _build_alert_message(category, threshold, percent, exceeded_by):
         )
 
     return f"{category} budget crossed {threshold}% ({percent}% used)."
+
+
+def _build_local_recommendation(category, percent):
+    if percent >= 100:
+        return (
+            f"Your {category} budget is exceeded. Pause non-essential "
+            "spending in this category until your next budget cycle."
+        )
+
+    if percent >= 80:
+        return (
+            f"You are close to your {category} budget limit. Keep only "
+            "necessary expenses for now."
+        )
+
+    return (
+        f"Your {category} spending is rising. Review recent expenses and "
+        "slow down before crossing the budget."
+    )
 
 
 def _build_alert_payload(
@@ -168,11 +186,7 @@ def check_category_alerts(user_id):
 
         exceeded_by = round(spent - limit, 2) if percent >= 100 else 0
 
-        try:
-            ai_text = get_ai_recommendation(budget_category, spent, limit)
-        except Exception as error:
-            print("AI ERROR =", error)
-            ai_text = "Unable to generate AI recommendation."
+        ai_text = _build_local_recommendation(budget_category, percent)
 
         festival_message = ""
         festival = get_upcoming_festival()
