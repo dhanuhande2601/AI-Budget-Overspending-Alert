@@ -308,6 +308,30 @@ button:hover {
   border: 1px solid rgba(37,99,235,0.3);
   box-shadow: none;
 }
+
+.category-budget-setup {
+  display: grid;
+  gap: 12px;
+}
+
+.category-budget-setup.onboarding-card {
+  width: min(560px, 100%);
+  padding: 24px;
+}
+
+.category-budget-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.category-budget-actions button:only-child {
+  grid-column: 1 / -1;
+}
+
+.onboarding-status {
+  width: min(560px, 100%);
+}
  
 .icon-button {
   width: 38px;
@@ -332,20 +356,33 @@ button:hover {
   flex-wrap: wrap;
   min-width: 0;
 }
+
+.expense-form-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+}
+
+.expense-form-header h2 {
+  margin: 0;
+}
  
 .voice-btn {
-  width: 100%;
-  margin-bottom: 10px;
+  width: auto;
+  min-height: 40px;
   background: #4f46e5;
   color: white;
   border: none;
-  padding: 10px;
+  padding: 10px 14px;
   border-radius: 8px;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
+  white-space: nowrap;
 }
 
 .voice-btn.recording {
@@ -378,6 +415,27 @@ textarea { min-height: 100px; }
 .stack, .expense-form {
   display: grid;
   gap: 12px;
+}
+
+.forgot-password-link {
+  justify-self: end;
+  width: auto;
+  min-height: auto;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--primary);
+  box-shadow: none;
+  font-size: 0.92rem;
+  font-weight: 700;
+}
+
+.forgot-password-link:hover {
+  background: transparent;
+  color: var(--primary-strong);
+  box-shadow: none;
+  text-decoration: underline;
 }
  
 .expense-form {
@@ -1208,6 +1266,13 @@ body.dark .danger-alert { background: #7f1d1d; color: #fca5a5; }
   .topbar-actions {
     justify-content: flex-start;
   }
+  .expense-form-header {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .voice-btn {
+    width: 100%;
+  }
   .expense-row { flex-direction: column; align-items: flex-start; }
   .expense-actions { width: 100%; justify-content: flex-start; }
   .latest-expense-item {
@@ -1225,6 +1290,9 @@ body.dark .danger-alert { background: #7f1d1d; color: #fca5a5; }
 
 @media (max-width: 520px) {
   .overview-grid { grid-template-columns: 1fr; }
+  .category-budget-actions {
+    grid-template-columns: 1fr;
+  }
   .panel,
   .card,
   .expense-form,

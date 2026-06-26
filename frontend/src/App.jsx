@@ -96,6 +96,7 @@ function App() {
   const [searchTerm, setSearchTerm] = useState('')
   const [categoryFilter, setCategoryFilter] = useState('')
   const [showCategoryBudget, setShowCategoryBudget] = useState(false)
+  const [isCategoryBudgetOnboarding, setIsCategoryBudgetOnboarding] = useState(false)
   const [showProfile, setShowProfile] = useState(false)
   const [categoryPredictions, setCategoryPredictions] = useState(null)
   const [categoryBudgets, setCategoryBudgetsState] = useState([])
@@ -204,16 +205,22 @@ function App() {
   const refreshDashboard = useCallback(async () => {
     if (!token) return
     try {
-      const [data, predData] = await Promise.all([
-        fetchDashboardData(token),
-        getCategoryPredictions(token).catch(() => null),
-      ])
+      const data = await fetchDashboardData(token)
       updateDashboard(data)
-      setCategoryPredictions(predData)
     } catch (error) {
       console.log('Dashboard refresh error:', error)
     }
   }, [token, updateDashboard])
+
+  const loadCategoryPredictions = useCallback(async () => {
+    if (!token) return
+    try {
+      const predData = await getCategoryPredictions(token)
+      setCategoryPredictions(predData)
+    } catch (error) {
+      console.log('Category predictions error:', error)
+    }
+  }, [token])
 
   const loadCategoryAlerts = useCallback(async () => {
     try {
@@ -257,12 +264,14 @@ function App() {
 
     async function initializeData() {
       try {
-        await Promise.all([
-          refreshDashboard(),
+        await refreshDashboard()
+        if (!isCurrent) return
+
+        Promise.all([
           loadCategoryBudgets(),
           loadCategoryAlerts(),
-        ])
-        if (!isCurrent) return
+          loadCategoryPredictions(),
+        ]).catch((error) => console.log(error))
       } catch (error) {
         console.log(error)
       }
@@ -270,7 +279,13 @@ function App() {
 
     initializeData()
     return () => { isCurrent = false }
-  }, [token, refreshDashboard, loadCategoryBudgets, loadCategoryAlerts])
+  }, [
+    token,
+    refreshDashboard,
+    loadCategoryBudgets,
+    loadCategoryAlerts,
+    loadCategoryPredictions,
+  ])
 
   function updateAuthForm(field, value) {
     setAuthForm((currentForm) => ({ ...currentForm, [field]: value }))
@@ -302,8 +317,13 @@ function App() {
         body: JSON.stringify(payload),
       })
       if (mode === 'register') {
-        setMode('login')
-        setMessage('Account created successfully')
+        localStorage.setItem('budget_token', data.token)
+        setToken(data.token)
+        setUser(data.user)
+        setAuthForm(emptyAuth)
+        setIsCategoryBudgetOnboarding(true)
+        setShowCategoryBudget(true)
+        setMessage('Account created successfully. Set category budgets to continue.')
         return
       }
       localStorage.setItem('budget_token', data.token)
@@ -317,6 +337,15 @@ function App() {
     }
   }
 
+  function handleForgotPassword() {
+    const email = authForm.email.trim()
+    setMessage(
+      email
+        ? `Password reset is not enabled yet. Please contact support/admin for ${email}.`
+        : 'Enter your registered email first, then use Forgot password.'
+    )
+  }
+
   async function saveCategoryBudgets() {
     try {
       await apiRequest('/category-budget/set', {
@@ -324,12 +353,23 @@ function App() {
         headers: authHeaders,
         body: JSON.stringify(categoryBudgetForm),
       })
-      setMessage('Category budgets saved')
+      setMessage(
+        isCategoryBudgetOnboarding
+          ? 'Category budgets saved. Welcome to your dashboard.'
+          : 'Category budgets saved'
+      )
+      setIsCategoryBudgetOnboarding(false)
       setShowCategoryBudget(false)
       await loadCategoryAlerts()
     } catch (error) {
       setMessage(error.message)
     }
+  }
+
+  function skipCategoryBudgetOnboarding() {
+    setIsCategoryBudgetOnboarding(false)
+    setShowCategoryBudget(false)
+    setMessage('You can set category budgets later from your profile.')
   }
 
   async function handleUpdateProfile(profileData) {
@@ -497,9 +537,25 @@ function App() {
         message={message}
         mode={mode}
         onAuthFormChange={updateAuthForm}
+        onForgotPassword={handleForgotPassword}
         onModeChange={setMode}
         onSubmit={handleAuth}
       />
+    )
+  }
+
+  if (showCategoryBudget && isCategoryBudgetOnboarding) {
+    return (
+      <main className="auth-screen">
+        <CategoryBudgetSetup
+          form={categoryBudgetForm}
+          isOnboarding
+          onSave={saveCategoryBudgets}
+          onSkip={skipCategoryBudgetOnboarding}
+          setForm={setCategoryBudgetForm}
+        />
+        {message && <p className="status onboarding-status">{message}</p>}
+      </main>
     )
   }
 
@@ -508,6 +564,7 @@ function App() {
       {showCategoryBudget && (
         <CategoryBudgetSetup
           form={categoryBudgetForm}
+          isOnboarding={false}
           setForm={setCategoryBudgetForm}
           onSave={saveCategoryBudgets}
         />

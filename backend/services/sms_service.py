@@ -32,19 +32,29 @@ def _send_fast2sms(phone, message):
         print("FAST2SMS ERROR = FAST2SMS_API_KEY is not configured.")
         return None
 
+    route = (Config.FAST2SMS_ROUTE or "q").strip().lower()
+    if route == "dlt":
+        print(
+            "FAST2SMS ERROR = DLT route needs sender_id and approved "
+            "template variables. For dynamic budget alerts set "
+            "FAST2SMS_ROUTE=q."
+        )
+        return None
+
     mobile = _indian_mobile_number(phone)
     if not mobile:
-        print("FAST2SMS ERROR = Invalid Indian mobile number.")
+        print("FAST2SMS ERROR = Invalid Indian mobile number:", phone)
         return None
 
     try:
+        print("FAST2SMS SENDING =", {"route": route, "numbers": mobile})
         response = requests.post(
             "https://www.fast2sms.com/dev/bulkV2",
             headers={
                 "authorization": Config.FAST2SMS_API_KEY,
             },
             data={
-                "route": Config.FAST2SMS_ROUTE,
+                "route": route,
                 "message": message,
                 "language": "english",
                 "flash": 0,

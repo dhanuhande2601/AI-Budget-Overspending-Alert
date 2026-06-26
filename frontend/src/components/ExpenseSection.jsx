@@ -97,7 +97,18 @@ function ExpenseSection({
   return (
     <>
       <form className="expense-form" onSubmit={onSubmit}>
-        <h2>{editingExpenseId ? 'Update expense' : 'Add expense'}</h2>
+        <div className="expense-form-header">
+          <h2>{editingExpenseId ? 'Update expense' : 'Add expense'}</h2>
+          <button
+            className={`voice-btn ${isRecording ? 'recording' : ''}`}
+            disabled={loading}
+            onClick={isRecording ? stopVoiceRecording : startVoiceRecording}
+            type="button"
+          >
+            {isRecording ? <FiSquare aria-hidden="true" /> : <FiMic aria-hidden="true" />}
+            {isRecording ? 'Stop Recording' : 'Add Voice Expense'}
+          </button>
+        </div>
         <input
           required
           placeholder="Title"
@@ -133,15 +144,6 @@ function ExpenseSection({
           value={expenseForm.payment_method}
           onChange={(event) => onExpenseFormChange('payment_method', event.target.value)}
         />
-        <button
-          className={`voice-btn ${isRecording ? 'recording' : ''}`}
-          disabled={loading}
-          onClick={isRecording ? stopVoiceRecording : startVoiceRecording}
-          type="button"
-        >
-          {isRecording ? <FiSquare aria-hidden="true" /> : <FiMic aria-hidden="true" />}
-          {isRecording ? 'Stop Recording' : 'Add Voice Expense'}
-        </button>
         <button disabled={loading} type="submit">
           <FiPlus aria-hidden="true" />
           {editingExpenseId ? 'Update Expense' : 'Add Expense'}

@@ -115,9 +115,24 @@ def register():
  
     db.session.commit()
     async_backup_users()  # Call the backup function after user registration
+
+    access_token = create_access_token(identity=str(new_user.id))
  
     return jsonify({
-        "message": "User registered successfully"
+        "message": "User registered successfully",
+        "token": access_token,
+        "is_new_user": True,
+        "user": {
+            "id": new_user.id,
+            "name": new_user.name,
+            "email": new_user.email,
+            "phone": new_user.phone,
+            "monthly_income": new_user.monthly_income,
+            "monthly_savings": new_user.monthly_savings,
+            "available_budget": new_user.available_budget,
+            "monthly_budget": available_budget,
+            "currency": new_user.currency or "INR",
+        }
     }), 201
  
 @auth.route('/login', methods=['POST'])

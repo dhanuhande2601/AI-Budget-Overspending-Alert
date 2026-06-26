@@ -50,9 +50,12 @@ def set_budget():
 
     for category in categories:
 
-        amount = float(
-            data.get(category,0)
-        )
+        try:
+            amount = float(data.get(category) or 0)
+        except (TypeError, ValueError):
+            return jsonify({
+                "message": f"{category.title()} budget must be a number"
+            }), 400
 
         existing = CategoryBudget.query.filter_by(
 

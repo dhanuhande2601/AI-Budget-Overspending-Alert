@@ -6,6 +6,7 @@ function AuthScreen({
   message,
   mode,
   onAuthFormChange,
+  onForgotPassword,
   onModeChange,
   onSubmit,
 }) {
@@ -89,6 +90,15 @@ function AuthScreen({
             onChange={(event) => onAuthFormChange('password', event.target.value)}
           />
 
+          {isLogin && (
+            <button
+              className="forgot-password-link"
+              type="button"
+              onClick={onForgotPassword}
+            >
+              Forgot password?
+            </button>
+          )}
 
           <button disabled={loading} type="submit">
             <FiUser aria-hidden="true" />
@@ -101,7 +111,7 @@ function AuthScreen({
           type="button"
           onClick={() => onModeChange(isLogin ? 'register' : 'login')}
         >
-          {isLogin ? 'Need an account?' : 'Already registered?'}
+          {isLogin ? 'Create account' : 'Already registered?'}
         </button>
         {message && <p className="status">{message}</p>}
       </section>
