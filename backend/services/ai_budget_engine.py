@@ -31,24 +31,31 @@ def detect_overspending(user_id):
             else 0
         )
  
+        alert_threshold = None
         if percentage >= 100:
- 
+            alert_threshold = 100
+        elif percentage >= 90:
+            alert_threshold = 90
+        elif percentage >= 75:
+            alert_threshold = 75
+        elif percentage >= 50:
+            alert_threshold = 50
+
+        if alert_threshold:
+            rounded_percentage = round(percentage, 2)
+            message = (
+                f"{budget_category} budget exceeded"
+                if alert_threshold == 100
+                else f"{budget_category} budget is {rounded_percentage}% used"
+            )
+
             alerts.append({
                 "category": budget_category,
-                "message": f"{budget_category} budget exceeded",
+                "message": message,
                 "spent": spent,
                 "limit": budget.monthly_limit,
-                "percentage": round(percentage, 2)
-            })
- 
-        elif percentage >= 80:
- 
-            alerts.append({
-                "category": budget_category,
-                "message": f"{budget_category} budget is {round(percentage,2)}% used",
-                "spent": spent,
-                "limit": budget.monthly_limit,
-                "percentage": round(percentage, 2)
+                "percentage": rounded_percentage,
+                "threshold": alert_threshold
             })
  
     return alerts

@@ -423,6 +423,31 @@ def _mark_reached_budget_alerts_sent(user, threshold):
             setattr(user, flag_attr, True)
 
 
+def _mark_reached_budget_channel_alerts_sent(user, threshold, channel):
+    for reached_threshold, flag_attr in BUDGET_ALERT_THRESHOLDS:
+        if reached_threshold > threshold:
+            continue
+
+        setattr(user, flag_attr, True)
+
+        if channel == "email":
+            setattr(user, _budget_email_flag(flag_attr), True)
+        elif channel == "sms":
+            setattr(user, _budget_sms_flag(flag_attr), True)
+
+
+def _budget_alert_covered_by_higher_channel(user, threshold, channel):
+    flag_builder = _budget_email_flag if channel == "email" else _budget_sms_flag
+
+    for reached_threshold, flag_attr in BUDGET_ALERT_THRESHOLDS:
+        if reached_threshold <= threshold:
+            continue
+        if bool(getattr(user, flag_builder(flag_attr))):
+            return True
+
+    return False
+
+
 def _budget_email_flag(flag_attr):
     return flag_attr.replace("_sent", "_email_sent")
 
@@ -452,8 +477,22 @@ def _send_overall_budget_alerts(user, total_spending):
 
         email_flag_attr = _budget_email_flag(flag_attr)
         sms_flag_attr = _budget_sms_flag(flag_attr)
-        email_already_sent = bool(getattr(user, email_flag_attr))
-        sms_already_sent = bool(getattr(user, sms_flag_attr))
+        email_already_sent = bool(
+            getattr(user, email_flag_attr)
+            or _budget_alert_covered_by_higher_channel(
+                user,
+                threshold,
+                "email"
+            )
+        )
+        sms_already_sent = bool(
+            getattr(user, sms_flag_attr)
+            or _budget_alert_covered_by_higher_channel(
+                user,
+                threshold,
+                "sms"
+            )
+        )
 
         should_email = bool(
             user.email
@@ -480,7 +519,11 @@ def _send_overall_budget_alerts(user, total_spending):
                     monthly_budget
                 )
                 sent_any_channel = True
-                setattr(user, email_flag_attr, True)
+                _mark_reached_budget_channel_alerts_sent(
+                    user,
+                    threshold,
+                    "email"
+                )
             except Exception as error:
                 print("Budget email sending failed:", error)
         elif not user.email:
@@ -500,7 +543,11 @@ def _send_overall_budget_alerts(user, total_spending):
                 )
                 if sms_sid:
                     sent_any_channel = True
-                    setattr(user, sms_flag_attr, True)
+                    _mark_reached_budget_channel_alerts_sent(
+                        user,
+                        threshold,
+                        "sms"
+                    )
                 else:
                     print("Budget SMS not marked sent because provider did not return SID.")
             except Exception as error:

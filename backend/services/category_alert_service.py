@@ -37,6 +37,26 @@ def _sms_flag(flag_attr):
     return flag_attr.replace("_sent", "_sms_sent")
 
 
+def _threshold_for_flag(flag_attr):
+    for threshold, _, base_flag in THRESHOLD_TIERS:
+        if flag_attr in {
+            base_flag,
+            _email_flag(base_flag),
+            _sms_flag(base_flag),
+        }:
+            return threshold
+    return None
+
+
+def _is_covered_by_higher_alert(budget, reached_tiers, threshold, flag_builder):
+    for reached_threshold, _, reached_flag in reached_tiers:
+        if reached_threshold <= threshold:
+            continue
+        if bool(getattr(budget, flag_builder(reached_flag))):
+            return True
+    return False
+
+
 def _email_alerts_enabled(user):
     return getattr(user, "email_alert_enabled", True) is not False
 
@@ -77,7 +97,7 @@ def _build_local_recommendation(category, percent):
             "spending in this category until your next budget cycle."
         )
 
-    if percent >= 80:
+    if percent >= 75:
         return (
             f"You are close to your {category} budget limit. Keep only "
             "necessary expenses for now."
@@ -136,8 +156,8 @@ def check_category_alerts(user_id):
     Return category-budget alerts for the current month.
 
     A category triggers each threshold once per month: 50, 75, 90, and 100.
-    If a single expense jumps from below 50 directly to 90 or 100, all newly
-    crossed unsent thresholds are returned with should_notify=True.
+    If spending jumps across multiple thresholds at once, the highest crossed
+    threshold is sent and lower thresholds are treated as covered.
     """
     now = datetime.now()
     alerts = []
@@ -201,15 +221,31 @@ def check_category_alerts(user_id):
 
         added_unsent_alert = False
 
-        for threshold, alert_type, flag_attr in reached_tiers:
+        for threshold, alert_type, flag_attr in reversed(reached_tiers):
             email_flag_attr = _email_flag(flag_attr)
             sms_flag_attr = _sms_flag(flag_attr)
 
             # Channel-specific flags decide whether email/SMS should be
             # retried. The legacy combined flag only controls in-app alert
             # history and must not permanently suppress email delivery.
-            email_already_sent = bool(getattr(budget, email_flag_attr))
-            sms_already_sent = bool(getattr(budget, sms_flag_attr))
+            email_already_sent = bool(
+                getattr(budget, email_flag_attr)
+                or _is_covered_by_higher_alert(
+                    budget,
+                    reached_tiers,
+                    threshold,
+                    _email_flag,
+                )
+            )
+            sms_already_sent = bool(
+                getattr(budget, sms_flag_attr)
+                or _is_covered_by_higher_alert(
+                    budget,
+                    reached_tiers,
+                    threshold,
+                    _sms_flag,
+                )
+            )
 
             should_email = bool(
                 user
@@ -271,6 +307,8 @@ def check_category_alerts(user_id):
                     notification_type="IN_APP"
                 ))
 
+            break
+
         if not added_unsent_alert:
             threshold, alert_type, flag_attr = reached_tiers[-1]
             email_flag_attr = _email_flag(flag_attr)
@@ -318,5 +356,20 @@ def mark_category_alert_sent(budget_id, flag_attr):
     if not budget:
         return
 
-    setattr(budget, flag_attr, True)
+    threshold = _threshold_for_flag(flag_attr)
+    if threshold is None:
+        return
+
+    if flag_attr in EMAIL_ALERT_FLAGS:
+        flag_builder = _email_flag
+    elif flag_attr in SMS_ALERT_FLAGS:
+        flag_builder = _sms_flag
+    else:
+        flag_builder = lambda flag: flag
+
+    for reached_threshold, _, reached_flag in THRESHOLD_TIERS:
+        if reached_threshold <= threshold:
+            setattr(budget, reached_flag, True)
+            setattr(budget, flag_builder(reached_flag), True)
+
     db.session.commit()

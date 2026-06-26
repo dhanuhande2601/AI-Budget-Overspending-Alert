@@ -31,7 +31,7 @@ class CategoryBudget(db.Model):
 
     # Tracks which alert thresholds have already been sent THIS month,
     # so a category doesn't spam an alert every time any expense is
-    # added while spending sits in the same 50/75/80/90/100+ band.
+    # added while spending sits in the same 50/75/90/100+ band.
     alert_month = db.Column(db.Integer, nullable=True)
     alert_year = db.Column(db.Integer, nullable=True)
     alert_50_sent = db.Column(db.Boolean, default=False)
