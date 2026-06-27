@@ -28,7 +28,10 @@ def _twilio_phone_number(phone):
 
 
 def _send_fast2sms(phone, message):
-    if not Config.FAST2SMS_API_KEY:
+    raw_api_key = Config.FAST2SMS_API_KEY or ""
+    api_key = raw_api_key.strip().splitlines()[0].strip()
+
+    if not api_key:
         print("FAST2SMS ERROR = FAST2SMS_API_KEY is not configured.")
         return None
 
@@ -51,7 +54,7 @@ def _send_fast2sms(phone, message):
         response = requests.post(
             "https://www.fast2sms.com/dev/bulkV2",
             headers={
-                "authorization": Config.FAST2SMS_API_KEY,
+                "authorization": api_key,
             },
             data={
                 "route": route,
