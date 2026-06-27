@@ -75,24 +75,16 @@ def _send_daily_overspending_email(user, alerts):
 
 def _build_daily_overspending_sms(alerts):
     alert_lines = []
-    for alert in alerts[:3]:
+    for alert in alerts[:2]:
         category = alert.get("category", "Budget")
         threshold = alert.get("threshold") or round(float(alert.get("percentage") or 0))
-        spent = round(float(alert.get("spent") or 0))
-        limit = round(float(alert.get("limit") or 0))
-        alert_lines.append(
-            f"{category}: {threshold}% used, Rs.{spent}/Rs.{limit}"
-        )
+        alert_lines.append(f"{category} {threshold}%")
 
     extra_count = len(alerts) - len(alert_lines)
     if extra_count > 0:
-        alert_lines.append(f"+{extra_count} more")
+        alert_lines.append(f"{extra_count} more")
 
-    return (
-        "AI Budget Alert\n"
-        + "\n".join(alert_lines)
-        + "\nReview spending in app."
-    )
+    return "Budget update: " + ", ".join(alert_lines) + ". Review in app."
 
 
 def _send_daily_overspending_sms(user, alerts):
