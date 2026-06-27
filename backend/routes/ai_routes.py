@@ -2,6 +2,7 @@ from datetime import date
 import calendar
 from flask import Blueprint, jsonify
 from flask_jwt_extended import get_jwt_identity, jwt_required
+from config import Config
 from database.db import db
 from models.budget_notification_model import BudgetNotification
 from services.openai_recommendation_service import (
@@ -27,6 +28,7 @@ from services.ai_budget_engine import (
     predict_month_end_spending,
 )
 from services.email_service import send_overspending_summary
+from services.sms_service import send_sms
 
 ai = Blueprint('ai', __name__)
 
@@ -39,6 +41,10 @@ def safe_text(value):
 
 def _email_alerts_enabled(user):
     return getattr(user, "email_alert_enabled", True) is not False
+
+
+def _sms_alerts_enabled(user):
+    return Config.SMS_ALERTS_ENABLED or bool(getattr(user, "sms_alert_enabled", False))
 
 
 def _send_daily_overspending_email(user, alerts):
@@ -63,6 +69,60 @@ def _send_daily_overspending_email(user, alerts):
         title=marker_title,
         message="Daily overspending summary email sent",
         notification_type="EMAIL"
+    ))
+    db.session.commit()
+
+
+def _build_daily_overspending_sms(alerts):
+    alert_lines = []
+    for alert in alerts[:3]:
+        category = alert.get("category", "Budget")
+        threshold = alert.get("threshold") or round(float(alert.get("percentage") or 0))
+        spent = round(float(alert.get("spent") or 0))
+        limit = round(float(alert.get("limit") or 0))
+        alert_lines.append(
+            f"{category}: {threshold}% used, Rs.{spent}/Rs.{limit}"
+        )
+
+    extra_count = len(alerts) - len(alert_lines)
+    if extra_count > 0:
+        alert_lines.append(f"+{extra_count} more")
+
+    return (
+        "AI Budget Alert\n"
+        + "\n".join(alert_lines)
+        + "\nReview spending in app."
+    )
+
+
+def _send_daily_overspending_sms(user, alerts):
+    if not alerts or not user or not user.phone or not _sms_alerts_enabled(user):
+        if user and not user.phone:
+            print("Daily overspending SMS skipped: user phone is missing")
+        return
+
+    today_key = date.today().isoformat()
+    marker_title = f"Daily Overspending SMS {today_key}"
+    existing = BudgetNotification.query.filter_by(
+        user_id=user.id,
+        title=marker_title,
+        notification_type="SMS"
+    ).first()
+
+    if existing:
+        print("Daily overspending SMS skipped: already sent to", user.phone)
+        return
+
+    sms_id = send_sms(user.phone, _build_daily_overspending_sms(alerts))
+    if not sms_id:
+        print("Daily overspending SMS failed: provider did not return id")
+        return
+
+    db.session.add(BudgetNotification(
+        user_id=user.id,
+        title=marker_title,
+        message="Daily overspending summary SMS sent",
+        notification_type="SMS"
     ))
     db.session.commit()
 
@@ -143,6 +203,10 @@ def overspending_alerts():
         _send_daily_overspending_email(user, alerts)
     except Exception as error:
         print("Daily overspending email failed:", error)
+    try:
+        _send_daily_overspending_sms(user, alerts)
+    except Exception as error:
+        print("Daily overspending SMS failed:", error)
 
     return jsonify({
         "alerts": alerts
